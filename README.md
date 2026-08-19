@@ -2,7 +2,8 @@
 
 A personal database of the plants I own, served from a Raspberry Pi on the home
 network. A tab bar moves between **Today** (what needs water), **All plants**,
-**Add** and **Settings**. Each plant has notes, a watering schedule and a photo.
+**Add** and **Settings**. Each plant has notes, a watering schedule, a photo and
+a note of whether it lives inside or outside.
 
 No frameworks and no dependencies: a static page plus a ~250-line Python
 standard-library server. Nothing to install on the Pi beyond what Raspberry Pi
@@ -44,6 +45,17 @@ express — *less in winter*, *let the soil dry out*.
 Schedules are evaluated in **local calendar days**, not UTC instants, so the
 list rolls over at your midnight rather than somewhere in the evening. The date
 maths is checked against daylight-saving jumps in both directions.
+
+## Inside or outside
+
+Optional, and off by default: a plant is *Inside*, *Outside*, or simply not
+marked. When it is set it appears first on the plant's own page and at the start
+of its line in both lists — enough to split a watering round into the windowsills
+and the balcony without having to open anything.
+
+Nothing else keys off it: it does not filter the lists and does not affect
+schedules. Plants added before it existed read as *Not set* until you say
+otherwise, and can be left that way indefinitely.
 
 ## Photos
 
@@ -213,6 +225,7 @@ usual on an SD card. Prefer `sudo shutdown -h now` over pulling the plug.
     {
       "id": "m1a2b3-x9y8z7",
       "name": "Monstera deliciosa",
+      "place": "inside",
       "schedule": { "type": "interval", "days": 7, "start": "2026-08-19" },
       "lastWatered": "2026-08-19",
       "photo": "2026-08-19T10:04:00.000Z",
@@ -224,6 +237,7 @@ usual on an SD card. Prefer `sudo shutdown -h now` over pulling the plug.
     {
       "id": "k9j8h7-a1b2c3",
       "name": "Basil",
+      "place": "outside",
       "schedule": { "type": "weekly", "weekdays": [1, 5] },
       "water": "",
       "notes": "Kitchen windowsill.",
@@ -237,9 +251,10 @@ usual on an SD card. Prefer `sudo shutdown -h now` over pulling the plug.
 `schedule` is `null` or absent when a plant has none, `weekdays` runs 0 = Sunday
 to 6 = Saturday, and `lastWatered` is a local date. `photo` is absent when there
 is none; when present its value is only a version stamp — the image itself is
-`<data>/photos/<id>.jpg`. Plants saved before
-schedules existed simply have no `schedule` key and never appear in *Water
-today* — nothing to migrate.
+`<data>/photos/<id>.jpg`. `place` is `"inside"`, `"outside"`, or empty/absent
+when it was never set. Plants saved before a field existed simply have no key
+for it — an older plant has no `schedule` and never appears in *Water today*,
+and no `place` and reads as *Not set*. Nothing to migrate either way.
 
 A deleted plant keeps its entry with a `deletedAt` timestamp, so that a phone
 that was offline during the delete cannot bring it back.

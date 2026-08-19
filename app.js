@@ -56,6 +56,11 @@ const live = () => plants.filter((p) => !p.deletedAt);
 
 const byName = (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
 
+/* plant.place is 'inside' or 'outside'; empty or absent means it was never set,
+   which is what every plant added before this existed looks like. */
+const PLACE = { inside: 'Inside', outside: 'Outside' };
+const placeText = (plant) => PLACE[plant.place] || '';
+
 /* =========================================================================
    Calendar days
 
@@ -558,9 +563,10 @@ function plantRow(plant, today, withTick) {
   text.appendChild(name);
 
   const status = waterStatus(plant, today);
-  const detail = withTick ? statusText(plant, today)
-                          : [scheduleText(plant), statusText(plant, today)]
-                              .filter(Boolean).join(' · ') || plant.water || '';
+  const rest = withTick ? statusText(plant, today)
+                        : [scheduleText(plant), statusText(plant, today)]
+                            .filter(Boolean).join(' · ') || plant.water || '';
+  const detail = [placeText(plant), rest].filter(Boolean).join(' · ');
   if (detail) {
     const sub = document.createElement('div');
     sub.className = 'sub' + (status.late > 0 ? ' late' : '');
@@ -633,6 +639,8 @@ function renderDetail(id) {
     photo.removeAttribute('src');
   }
 
+  fill($('#d-place'), placeText(p), 'Not set');
+
   const schedule = scheduleText(p);
   const status = statusText(p, today);
   fill($('#d-sched'), [schedule, status].filter(Boolean).join(' · '), 'No schedule set');
@@ -693,6 +701,18 @@ function fill(node, text, placeholder) {
 
 const schedRadios = () => $$('input[name="sched"]');
 const dayBoxes = () => $$('#f-days-of-week input[type="checkbox"]');
+const placeRadios = () => $$('input[name="place"]');
+
+function loadPlace(plant) {
+  const value = (plant && plant.place) || 'none';
+  for (const radio of placeRadios()) radio.checked = radio.value === value;
+}
+
+/** Reads the picker; '' for "not set", which is how an unset plant reads too. */
+function readPlace() {
+  const checked = placeRadios().filter((r) => r.checked)[0];
+  return !checked || checked.value === 'none' ? '' : checked.value;
+}
 
 function selectedSchedType() {
   const checked = schedRadios().filter((r) => r.checked)[0];
@@ -753,6 +773,7 @@ function renderForm(id) {
   $('#f-water').value = p ? p.water || '' : '';
   $('#f-notes').value = p ? p.notes || '' : '';
   $('#f-name').classList.remove('invalid');
+  loadPlace(p);
   loadSchedule(p);
 
   form.onsubmit = (e) => {
@@ -767,13 +788,14 @@ function renderForm(id) {
     const now = new Date().toISOString();
     const water = $('#f-water').value.trim();
     const notes = $('#f-notes').value.trim();
+    const place = readPlace();
     const schedule = readSchedule(p && p.schedule);
 
     let saved = p;
     if (p) {
-      Object.assign(p, { name, water, notes, schedule, updatedAt: now });
+      Object.assign(p, { name, place, water, notes, schedule, updatedAt: now });
     } else {
-      saved = { id: uid(), name, water, notes, schedule, createdAt: now, updatedAt: now };
+      saved = { id: uid(), name, place, water, notes, schedule, createdAt: now, updatedAt: now };
       plants.push(saved);
     }
 

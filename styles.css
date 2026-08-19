@@ -313,13 +313,13 @@ main { max-width: 720px; margin: 0 auto; }
   -webkit-overflow-scrolling: touch;
 }
 
-/* ---------- schedule picker ---------- */
-.sched {
+/* ---------- pickers (where it lives, schedule) ---------- */
+.group {
   margin: 20px 0 0;
   padding: 0;
   border: 0;
 }
-.sched legend {
+.group legend {
   padding: 0;
   margin-bottom: 6px;
   font-size: 14px;
