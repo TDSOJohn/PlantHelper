@@ -1,8 +1,8 @@
 # Plants
 
 A personal database of the plants I own, served from a Raspberry Pi on the home
-network. The home screen shows what needs water today; behind an **All plants**
-button is the full list, and each plant has notes and a watering schedule.
+network. A tab bar moves between **Today** (what needs water), **All plants**,
+**Add** and **Settings**. Each plant has notes, a watering schedule and a photo.
 
 No frameworks and no dependencies: a static page plus a ~250-line Python
 standard-library server. Nothing to install on the Pi beyond what Raspberry Pi
@@ -10,7 +10,7 @@ OS already ships.
 
 ```
 index.html  styles.css  app.js  icon*      the page
-server.py                                  static files + /api/plants
+server.py                                  static files, /api/plants, photos
 plants.service  install.sh                 run it under systemd
 ```
 
@@ -45,13 +45,35 @@ Schedules are evaluated in **local calendar days**, not UTC instants, so the
 list rolls over at your midnight rather than somewhere in the evening. The date
 maths is checked against daylight-saving jumps in both directions.
 
+## Photos
+
+One photo per plant, taken or picked with the normal iOS photo sheet.
+
+The **browser** does the resizing: centre-cropped to 512x512 and encoded as JPEG
+on a canvas before anything is sent, so the Pi never decodes a 4 MB phone photo
+and needs no image library installed. EXIF rotation is honoured, so photos taken
+sideways are not stored sideways. A finished photo is around 50 kB.
+
+The file lives on the **server**, at `<data>/photos/<plant-id>.jpg`, not in
+`plants.json`. A few dozen base64-encoded photos would blow past the browser's
+~5 MB localStorage quota and be re-sent on every sync. The plant record carries
+only `photo`, a version stamp that changes when the photo is replaced, which is
+what lets the images be cached hard (a week) and still update instantly.
+
+Photos are the one part of the app with **no offline path**: they go straight to
+the server, and if it cannot be reached the app says so and changes nothing.
+Everything else keeps working from the local cache.
+
 ## How it works
 
 The Pi serves both the page and its data, so everything is same-origin: no
 tokens, no CORS, no cloud account.
 
-    GET /api/plants  ->  {"version": 1, "updatedAt": "...", "plants": [...]}
-    PUT /api/plants  <-  {"plants": [...]}
+    GET    /api/plants      ->  {"version": 1, "updatedAt": "...", "plants": [...]}
+    PUT    /api/plants      <-  {"plants": [...]}
+    PUT    /api/photo/<id>  <-  raw JPEG bytes
+    DELETE /api/photo/<id>
+    GET    /photos/<id>.jpg
 
 A `PUT` is **merged** with what is already on disk rather than replacing it —
 union by plant id, most recently updated copy wins, deletes are tombstones. So
@@ -173,9 +195,9 @@ Three layers, in increasing order of effort:
 - The server keeps a dated snapshot in `/var/lib/plants/backups/` on the first
   write of each day, pruned to the last 30.
 - Settings → **Export JSON** saves the whole list; **Import JSON** merges one
-  back in.
-- Copy the file off the Pi periodically:
-  `scp plants.local:/var/lib/plants/plants.json ~/backups/`
+  back in. Photos are not included — they are files, not JSON.
+- Copy the whole data directory off the Pi periodically, photos and all:
+  `rsync -a plants.local:/var/lib/plants/ ~/backups/plants/`
 
 Writes are atomic — temp file, `fsync`, rename — so a power cut leaves either
 the old file or the new one, never a truncated one. That matters more than
@@ -193,6 +215,7 @@ usual on an SD card. Prefer `sudo shutdown -h now` over pulling the plug.
       "name": "Monstera deliciosa",
       "schedule": { "type": "interval", "days": 7, "start": "2026-08-19" },
       "lastWatered": "2026-08-19",
+      "photo": "2026-08-19T10:04:00.000Z",
       "water": "Less in winter",
       "notes": "Bright indirect light. Repotted March 2026.",
       "createdAt": "2026-08-19T10:00:00Z",
@@ -212,7 +235,9 @@ usual on an SD card. Prefer `sudo shutdown -h now` over pulling the plug.
 ```
 
 `schedule` is `null` or absent when a plant has none, `weekdays` runs 0 = Sunday
-to 6 = Saturday, and `lastWatered` is a local date. Plants saved before
+to 6 = Saturday, and `lastWatered` is a local date. `photo` is absent when there
+is none; when present its value is only a version stamp — the image itself is
+`<data>/photos/<id>.jpg`. Plants saved before
 schedules existed simply have no `schedule` key and never appear in *Water
 today* — nothing to migrate.
 

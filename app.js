@@ -14,11 +14,14 @@ const K_DIRTY  = 'plantdb.dirty.v1';
 
 const API = new URL('api/plants', document.baseURI).href;
 const TIMEOUT = 8000;
+const PHOTO_SIZE = 512;
+const PHOTO_QUALITY = 0.82;
 
 let plants = read(K_PLANTS, []);
 let dirty  = read(K_DIRTY, false);   // local changes the server has not seen
 let lastSync = null;
 let lastError = '';
+let cameFrom = '';                   // the route the current view was reached from
 
 /* ---------- tiny helpers ---------- */
 
@@ -334,6 +337,132 @@ function commit() {
   sync(true);
 }
 
+/* =========================================================================
+   Photos
+
+   Resized to a 512x512 JPEG in the browser before upload: the Pi never has to
+   decode a 4 MB phone photo, and nothing extra has to be installed on it. The
+   file itself lives on the server, not in plants.json — a few dozen base64
+   photos would blow past the ~5 MB localStorage quota and be re-sent on every
+   sync. The plant record only carries `photo`, a version stamp used to bust
+   the image cache when a photo is replaced.
+   ========================================================================= */
+
+const photoEndpoint = (id) =>
+  new URL('api/photo/' + encodeURIComponent(id), document.baseURI).href;
+
+const photoSrc = (plant) =>
+  new URL('photos/' + encodeURIComponent(plant.id) + '.jpg?v=' +
+          encodeURIComponent(plant.photo), document.baseURI).href;
+
+/** Centre-cropped square JPEG, with EXIF rotation honoured. */
+async function squareJpeg(file, size) {
+  let bitmap = null;
+  let objectUrl = '';
+  let source;
+
+  if (typeof createImageBitmap === 'function') {
+    try {
+      bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+      source = bitmap;
+    } catch (e) {
+      bitmap = null;    // older Safari, or a format it cannot decode this way
+    }
+  }
+
+  if (!source) {
+    objectUrl = URL.createObjectURL(file);
+    source = await new Promise((resolve, reject) => {
+      const img = document.createElement('img');
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('the browser cannot read that image'));
+      img.src = objectUrl;
+    });
+  }
+
+  try {
+    const width = source.width || source.naturalWidth;
+    const height = source.height || source.naturalHeight;
+    if (!width || !height) throw new Error('the image has no size');
+
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, size, size);
+
+    const side = Math.min(width, height);
+    ctx.drawImage(source, (width - side) / 2, (height - side) / 2, side, side, 0, 0, size, size);
+
+    return await new Promise((resolve, reject) => {
+      canvas.toBlob(
+        (blob) => blob ? resolve(blob) : reject(new Error('could not encode a JPEG')),
+        'image/jpeg', PHOTO_QUALITY);
+    });
+  } finally {
+    if (bitmap && bitmap.close) bitmap.close();
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+  }
+}
+
+async function attachPhoto(id, file) {
+  const plant = plants.find((x) => x.id === id && !x.deletedAt);
+  if (!plant || !file) return;
+
+  setStatus('Preparing photo…', false, true);
+
+  let blob;
+  try {
+    blob = await squareJpeg(file, PHOTO_SIZE);
+  } catch (e) {
+    setStatus('Could not use that image: ' + e.message, true, true);
+    return;
+  }
+
+  setStatus('Uploading photo…', false, true);
+  try {
+    const res = await fetch(photoEndpoint(id), {
+      method: 'PUT',
+      cache: 'no-store',
+      headers: { 'Content-Type': 'image/jpeg' },
+      body: blob
+    });
+    if (!res.ok) {
+      let detail = '';
+      try {
+        detail = (await res.json()).error || '';
+      } catch (err) { /* not JSON */ }
+      throw new Error(detail || ('the server returned ' + res.status));
+    }
+  } catch (e) {
+    // Photos go straight to the server — there is no offline queue for them.
+    setStatus('Photo not saved (' + (e.message || 'no connection') +
+              '). Photos need the server, so try again at home.', true, true);
+    return;
+  }
+
+  plant.photo = new Date().toISOString();
+  plant.updatedAt = plant.photo;
+  commit();
+  setStatus('Photo saved', false);
+}
+
+async function removePhoto(id) {
+  const plant = plants.find((x) => x.id === id && !x.deletedAt);
+  if (!plant) return;
+  if (!confirm('Remove the photo of “' + plant.name + '”?')) return;
+
+  try {
+    await fetch(photoEndpoint(id), { method: 'DELETE', cache: 'no-store' });
+  } catch (e) {
+    // The record is what matters; a stray file on the Pi is harmless.
+  }
+
+  delete plant.photo;
+  plant.updatedAt = new Date().toISOString();
+  commit();
+}
+
 function markWatered(id) {
   const p = plants.find((x) => x.id === id && !x.deletedAt);
   if (!p) return;
@@ -358,7 +487,22 @@ function show(view, title, canGoBack) {
   }
   $('#title').textContent = title;
   $('#back').hidden = !canGoBack;
+
+  const path = route();
+  for (const tab of $$('.tab')) {
+    tab.classList.toggle('active', tab.getAttribute('data-tab') === path);
+  }
+
   window.scrollTo(0, 0);
+}
+
+/**
+ * Navigate, replacing the current history entry. Used after saving or deleting
+ * so that Back never returns to a form that has already been submitted.
+ */
+function replaceRoute(hash) {
+  location.replace(hash);
+  render();     // the hashchange fires too; rendering twice is harmless
 }
 
 /** Re-render after a background change, without clobbering a half-typed form. */
@@ -396,10 +540,22 @@ function plantRow(plant, today, withTick) {
   const a = document.createElement('a');
   a.href = '#/p/' + encodeURIComponent(plant.id);
 
+  if (plant.photo) {
+    const thumb = document.createElement('img');
+    thumb.className = 'thumb';
+    thumb.src = photoSrc(plant);
+    thumb.alt = '';
+    thumb.loading = 'lazy';
+    a.appendChild(thumb);
+  }
+
+  const text = document.createElement('div');
+  text.className = 'text';
+
   const name = document.createElement('div');
   name.className = 'name';
   name.textContent = plant.name;
-  a.appendChild(name);
+  text.appendChild(name);
 
   const status = waterStatus(plant, today);
   const detail = withTick ? statusText(plant, today)
@@ -409,8 +565,10 @@ function plantRow(plant, today, withTick) {
     const sub = document.createElement('div');
     sub.className = 'sub' + (status.late > 0 ? ' late' : '');
     sub.textContent = detail;
-    a.appendChild(sub);
+    text.appendChild(sub);
   }
+
+  a.appendChild(text);
   li.appendChild(a);
 
   if (withTick) {
@@ -439,8 +597,6 @@ function renderToday() {
   $('#no-plants').hidden = hasPlants;
   $('#today-heading').hidden = !hasPlants;
   $('#today-empty').hidden = !hasPlants || due.length > 0;
-  $('#all-btn').hidden = !hasPlants;
-  $('#all-btn').textContent = `All plants (${all.length})`;
 
   show('list', due.length ? `Today (${due.length})` : 'Today', false);
 }
@@ -462,11 +618,20 @@ function renderDetail(id) {
   const today = todayKey();
   const p = plants.find((x) => x.id === id && !x.deletedAt);
   if (!p) {
-    location.hash = '#/';
+    location.replace('#/');   // no history entry for a plant that is gone
     return;
   }
 
   $('#d-name').textContent = p.name;
+
+  const photo = $('#d-photo');
+  photo.hidden = !p.photo;
+  if (p.photo) {
+    photo.src = photoSrc(p);
+    photo.alt = p.name;
+  } else {
+    photo.removeAttribute('src');
+  }
 
   const schedule = scheduleText(p);
   const status = statusText(p, today);
@@ -490,13 +655,30 @@ function renderDetail(id) {
   watered.textContent = watered.disabled ? 'Watered today ✓' : 'Mark as watered';
   watered.onclick = () => markWatered(p.id);
 
+  const add = $('#d-photo-add');
+  const remove = $('#d-photo-remove');
+  const picker = $('#d-photo-file');
+  add.textContent = p.photo ? 'Replace photo' : 'Add photo';
+  add.onclick = () => picker.click();
+  remove.hidden = !p.photo;
+  remove.onclick = () => removePhoto(p.id);
+  picker.onchange = (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';               // let the same file be picked again
+    attachPhoto(p.id, file);
+  };
+
   $('#d-edit').href = '#/p/' + encodeURIComponent(p.id) + '/edit';
   $('#d-delete').onclick = () => {
     if (!confirm(`Delete “${p.name}”?`)) return;
+    if (p.photo) {
+      fetch(photoEndpoint(p.id), { method: 'DELETE', cache: 'no-store' }).catch(() => {});
+    }
     p.deletedAt = new Date().toISOString();
     p.updatedAt = p.deletedAt;
     commit();
-    location.hash = '#/';
+    // Back must not return to the plant that was just deleted
+    replaceRoute('#/');
   };
 
   show('detail', p.name, true);
@@ -561,7 +743,7 @@ function readSchedule(previous) {
 function renderForm(id) {
   const p = id ? plants.find((x) => x.id === id && !x.deletedAt) : null;
   if (id && !p) {
-    location.hash = '#/';
+    location.replace('#/');
     return;
   }
 
@@ -587,17 +769,24 @@ function renderForm(id) {
     const notes = $('#f-notes').value.trim();
     const schedule = readSchedule(p && p.schedule);
 
+    let saved = p;
     if (p) {
       Object.assign(p, { name, water, notes, schedule, updatedAt: now });
     } else {
-      plants.push({
-        id: uid(), name, water, notes, schedule,
-        createdAt: now, updatedAt: now
-      });
+      saved = { id: uid(), name, water, notes, schedule, createdAt: now, updatedAt: now };
+      plants.push(saved);
     }
 
     commit();
-    location.hash = p ? '#/p/' + encodeURIComponent(p.id) : '#/';
+    // A submitted form must not stay in history, or Back from the plant lands
+    // straight back in the editor. If the editor was opened from this plant's
+    // own page, pop it; otherwise replace the entry. Either way a new plant
+    // ends up on its own page, which is where a photo can be added.
+    if (p && cameFrom === '/p/' + p.id) {
+      history.back();
+    } else {
+      replaceRoute('#/p/' + encodeURIComponent(saved.id));
+    }
   };
 
   $('#f-cancel').onclick = () => history.back();
@@ -633,7 +822,17 @@ function renderSettings() {
    Wiring
    ========================================================================= */
 
-window.addEventListener('hashchange', render);
+window.addEventListener('hashchange', (e) => {
+  // Remember where we came from, so a saved edit can pop the editor off the
+  // history stack rather than leaving a duplicate entry behind it.
+  cameFrom = '';
+  if (e && e.oldURL) {
+    try {
+      cameFrom = new URL(e.oldURL).hash.slice(1);
+    } catch (err) { /* not a URL we can read */ }
+  }
+  render();
+});
 
 $('#back').onclick = () => history.back();
 

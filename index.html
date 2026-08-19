@@ -20,7 +20,6 @@
 <header class="topbar">
   <button id="back" class="icon-btn" hidden aria-label="Back">&#8249;</button>
   <h1 id="title">Plants</h1>
-  <a href="#/settings" class="icon-btn" aria-label="Settings">&#9881;</a>
 </header>
 
 <div id="status" class="status" role="status" hidden></div>
@@ -32,23 +31,20 @@
     <h2 id="today-heading" class="section">Water today</h2>
     <ul id="today-list" class="list"></ul>
     <p id="today-empty" class="resting" hidden>Nothing to water today.</p>
-    <p id="no-plants" class="empty" hidden>No plants yet.<br><span>Tap <b>+</b> to add your first one.</span></p>
-    <div class="row">
-      <a href="#/all" class="btn" id="all-btn">All plants</a>
-    </div>
-    <a href="#/new" class="fab" aria-label="Add a plant">+</a>
+    <p id="no-plants" class="empty" hidden>No plants yet.<br><span>Tap <b>Add</b> to enter your first one.</span></p>
   </section>
 
   <!-- ---------- all plants ---------- -->
   <section id="view-all" class="view" hidden>
     <ul id="plant-list" class="list"></ul>
-    <a href="#/new" class="fab" aria-label="Add a plant">+</a>
   </section>
 
   <!-- ---------- detail ---------- -->
   <section id="view-detail" class="view" hidden>
     <div class="detail">
+      <img id="d-photo" class="photo" alt="" hidden>
       <h2 id="d-name"></h2>
+
       <div class="field">
         <span class="label">Schedule</span>
         <p id="d-sched" class="value"></p>
@@ -62,8 +58,14 @@
         <p id="d-notes" class="value"></p>
       </div>
       <p id="d-meta" class="meta"></p>
+
       <div class="row">
         <button id="d-watered" class="btn primary">Mark as watered</button>
+      </div>
+      <div class="row">
+        <button id="d-photo-add" class="btn">Add photo</button>
+        <button id="d-photo-remove" class="btn" hidden>Remove photo</button>
+        <input id="d-photo-file" type="file" accept="image/*" hidden>
       </div>
       <div class="row">
         <a id="d-edit" class="btn" href="#">Edit</a>
@@ -139,6 +141,7 @@
       </div>
 
       <h2>Backup</h2>
+      <p class="hint">Photos are not included — they live on the server.</p>
       <div class="row">
         <button id="s-export" class="btn">Export JSON</button>
         <button id="s-import" class="btn">Import JSON</button>
@@ -154,6 +157,25 @@
   </section>
 
 </main>
+
+<nav class="tabs" aria-label="Main">
+  <a class="tab" href="#/" data-tab="/">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5c3 3.7 5 6.5 5 8.7a5 5 0 0 1-10 0c0-2.2 2-5 5-8.7z"/></svg>
+    <span>Today</span>
+  </a>
+  <a class="tab" href="#/all" data-tab="/all">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5h2M9 6.5h11M4 12h2M9 12h11M4 17.5h2M9 17.5h11"/></svg>
+    <span>All plants</span>
+  </a>
+  <a class="tab" href="#/new" data-tab="/new">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+    <span>Add</span>
+  </a>
+  <a class="tab" href="#/settings" data-tab="/settings">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5h16M4 15.5h16M9.5 6v5M15.5 13v5"/></svg>
+    <span>Settings</span>
+  </a>
+</nav>
 
 <script src="app.js"></script>
 </body>
