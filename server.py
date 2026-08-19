@@ -163,6 +163,7 @@ class Handler(SimpleHTTPRequestHandler):
 
     extensions_map = dict(SimpleHTTPRequestHandler.extensions_map)
     extensions_map[".webmanifest"] = "application/manifest+json"
+    extensions_map[".md"] = "text/markdown; charset=utf-8"
 
     # ---------- routing ----------
 

@@ -869,6 +869,34 @@ $('#s-file').onchange = async (e) => {
   e.target.value = '';
 };
 
+$('#s-docs').onclick = async () => {
+  const panel = $('#s-doc');
+  const button = $('#s-docs');
+
+  if (!panel.hidden) {
+    panel.hidden = true;
+    button.textContent = 'Show README';
+    return;
+  }
+
+  if (!panel.textContent) {              // fetched once, then kept
+    button.disabled = true;
+    try {
+      const res = await fetch(new URL('README.md', document.baseURI).href, { cache: 'no-cache' });
+      if (!res.ok) throw new Error('the server returned ' + res.status);
+      panel.textContent = await res.text();
+    } catch (e) {
+      setStatus('Could not load the README: ' + (e.message || 'no connection'), true, true);
+      button.disabled = false;
+      return;
+    }
+    button.disabled = false;
+  }
+
+  panel.hidden = false;
+  button.textContent = 'Hide README';
+};
+
 $('#s-forget').onclick = () => {
   if (!confirm('Erase the copy cached in this browser? The server keeps its copy, and the next sync pulls it back.')) return;
   plants = [];

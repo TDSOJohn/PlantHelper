@@ -297,6 +297,22 @@ main { max-width: 720px; margin: 0 auto; }
   font-size: 14px;
 }
 
+/* the README, shown as-is */
+.doc {
+  margin: 12px 0 0;
+  padding: 14px;
+  max-height: 60vh;
+  overflow: auto;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--ink-dim);
+  font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  -webkit-overflow-scrolling: touch;
+}
+
 /* ---------- schedule picker ---------- */
 .sched {
   margin: 20px 0 0;

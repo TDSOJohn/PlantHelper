@@ -31,7 +31,8 @@ echo "installing the app into $APP_DIR"
 install -d -m 755 "$APP_DIR"
 install -m 644 -t "$APP_DIR" \
   "$SRC/index.html" "$SRC/styles.css" "$SRC/app.js" \
-  "$SRC/manifest.webmanifest" "$SRC/icon.svg" "$SRC/icon-180.png" "$SRC/icon-512.png"
+  "$SRC/manifest.webmanifest" "$SRC/icon.svg" "$SRC/icon-180.png" "$SRC/icon-512.png" \
+  "$SRC/README.md"
 install -m 755 -t "$APP_DIR" "$SRC/server.py"
 
 echo "preparing $DATA_DIR"
