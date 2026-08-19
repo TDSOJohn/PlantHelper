@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Plants</title>
+<meta name="description" content="A personal database of the plants I own.">
+<meta name="theme-color" content="#f4f6f2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141917" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Plants">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <button id="back" class="icon-btn" hidden aria-label="Back">&#8249;</button>
+  <h1 id="title">Plants</h1>
+  <a href="#/settings" class="icon-btn" aria-label="Settings">&#9881;</a>
+</header>
+
+<div id="status" class="status" role="status" hidden></div>
+
+<main>
+
+  <!-- ---------- list ---------- -->
+  <section id="view-list" class="view">
+    <ul id="plant-list" class="list"></ul>
+    <p id="empty" class="empty" hidden>No plants yet.<br><span>Tap <b>+</b> to add your first one.</span></p>
+    <a href="#/new" class="fab" aria-label="Add a plant">+</a>
+  </section>
+
+  <!-- ---------- detail ---------- -->
+  <section id="view-detail" class="view" hidden>
+    <div class="detail">
+      <h2 id="d-name"></h2>
+      <div class="field">
+        <span class="label">Water schedule</span>
+        <p id="d-water" class="value"></p>
+      </div>
+      <div class="field">
+        <span class="label">Notes</span>
+        <p id="d-notes" class="value"></p>
+      </div>
+      <p id="d-meta" class="meta"></p>
+      <div class="row">
+        <a id="d-edit" class="btn" href="#">Edit</a>
+        <button id="d-delete" class="btn danger">Delete</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------- add / edit ---------- -->
+  <section id="view-edit" class="view" hidden>
+    <form id="form" class="form" novalidate>
+      <label for="f-name">Name</label>
+      <input id="f-name" name="name" type="text" required maxlength="80"
+             autocomplete="off" autocapitalize="words" placeholder="Monstera deliciosa">
+
+      <label for="f-water">Water schedule</label>
+      <input id="f-water" name="water" type="text" maxlength="200"
+             autocomplete="off" placeholder="Every 7 days, less in winter">
+
+      <label for="f-notes">Notes</label>
+      <textarea id="f-notes" name="notes" rows="6"
+                placeholder="Bright indirect light. Repotted March 2026."></textarea>
+
+      <div class="row">
+        <button type="submit" class="btn primary">Save</button>
+        <button type="button" id="f-cancel" class="btn">Cancel</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- ---------- settings ---------- -->
+  <section id="view-settings" class="view" hidden>
+    <div class="form">
+      <h2>Server</h2>
+      <p class="hint" id="s-server"></p>
+      <p class="hint">
+        Your plants live on the home server. This browser keeps a copy so the app
+        still works while the server is rebooting; anything you change meanwhile is
+        sent up on the next sync.
+      </p>
+      <div class="row">
+        <button id="s-sync" class="btn primary">Sync now</button>
+      </div>
+
+      <h2>Backup</h2>
+      <div class="row">
+        <button id="s-export" class="btn">Export JSON</button>
+        <button id="s-import" class="btn">Import JSON</button>
+        <input id="s-file" type="file" accept="application/json,.json" hidden>
+      </div>
+
+      <h2>This device</h2>
+      <p class="hint" id="s-count"></p>
+      <div class="row">
+        <button id="s-forget" class="btn danger">Erase local copy</button>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
