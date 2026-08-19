@@ -93,12 +93,28 @@ body {
 main { max-width: 720px; margin: 0 auto; }
 .view { padding: var(--pad); }
 
-/* ---------- list ---------- */
+/* ---------- lists ---------- */
+.section {
+  margin: 0 0 10px;
+  color: var(--ink-dim);
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
 .list { margin: 0; padding: 0; list-style: none; }
 
+.list li {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
 .list li + li { margin-top: 8px; }
 
 .list a {
+  flex: 1;
+  min-width: 0;
   display: block;
   padding: 14px 16px;
   background: var(--card);
@@ -118,9 +134,35 @@ main { max-width: 720px; margin: 0 auto; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.list .sub.late { color: var(--danger); font-weight: 600; }
+
+/* tick-it-off button on today's list */
+.tick {
+  flex: none;
+  width: 56px;
+  padding: 0;
+  background: var(--card);
+  color: var(--accent);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+.tick:active { background: var(--accent); color: var(--accent-ink); }
+
+.resting {
+  margin: 4px 0 0;
+  padding: 18px 16px;
+  background: var(--card);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  color: var(--ink-dim);
+  text-align: center;
+}
 
 .empty {
-  margin: 25vh 0 0;
+  margin: 20vh 0 0;
   color: var(--ink-dim);
   text-align: center;
 }
@@ -172,6 +214,7 @@ main { max-width: 720px; margin: 0 auto; }
   white-space: pre-wrap;
 }
 .value.blank { color: var(--ink-dim); font-style: italic; }
+.value.late { color: var(--danger); font-weight: 600; }
 
 .meta { margin: 0 0 20px; color: var(--ink-dim); font-size: 14px; }
 
@@ -193,7 +236,74 @@ main { max-width: 720px; margin: 0 auto; }
   font-size: 14px;
 }
 
+/* ---------- schedule picker ---------- */
+.sched {
+  margin: 20px 0 0;
+  padding: 0;
+  border: 0;
+}
+.sched legend {
+  padding: 0;
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.seg, .days {
+  display: flex;
+  gap: 6px;
+}
+.days { flex-wrap: wrap; margin-top: 14px; }
+
+.seg label, .days label {
+  position: relative;
+  flex: 1 1 0;
+  margin: 0;
+}
+.days label { flex-basis: 44px; }
+
+.seg input, .days input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.seg span, .days span {
+  display: block;
+  padding: 11px 4px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.seg input:checked + span,
+.days input:checked + span {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.seg input:focus-visible + span,
+.days input:focus-visible + span {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.inline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  font-size: 15px;
+}
+.inline input { width: 5em; text-align: center; }
+
 input[type="text"],
+input[type="number"],
 textarea {
   display: block;
   width: 100%;

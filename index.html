@@ -27,10 +27,21 @@
 
 <main>
 
-  <!-- ---------- list ---------- -->
+  <!-- ---------- today ---------- -->
   <section id="view-list" class="view">
+    <h2 id="today-heading" class="section">Water today</h2>
+    <ul id="today-list" class="list"></ul>
+    <p id="today-empty" class="resting" hidden>Nothing to water today.</p>
+    <p id="no-plants" class="empty" hidden>No plants yet.<br><span>Tap <b>+</b> to add your first one.</span></p>
+    <div class="row">
+      <a href="#/all" class="btn" id="all-btn">All plants</a>
+    </div>
+    <a href="#/new" class="fab" aria-label="Add a plant">+</a>
+  </section>
+
+  <!-- ---------- all plants ---------- -->
+  <section id="view-all" class="view" hidden>
     <ul id="plant-list" class="list"></ul>
-    <p id="empty" class="empty" hidden>No plants yet.<br><span>Tap <b>+</b> to add your first one.</span></p>
     <a href="#/new" class="fab" aria-label="Add a plant">+</a>
   </section>
 
@@ -39,7 +50,11 @@
     <div class="detail">
       <h2 id="d-name"></h2>
       <div class="field">
-        <span class="label">Water schedule</span>
+        <span class="label">Schedule</span>
+        <p id="d-sched" class="value"></p>
+      </div>
+      <div class="field">
+        <span class="label">Watering notes</span>
         <p id="d-water" class="value"></p>
       </div>
       <div class="field">
@@ -47,6 +62,9 @@
         <p id="d-notes" class="value"></p>
       </div>
       <p id="d-meta" class="meta"></p>
+      <div class="row">
+        <button id="d-watered" class="btn primary">Mark as watered</button>
+      </div>
       <div class="row">
         <a id="d-edit" class="btn" href="#">Edit</a>
         <button id="d-delete" class="btn danger">Delete</button>
@@ -61,9 +79,39 @@
       <input id="f-name" name="name" type="text" required maxlength="80"
              autocomplete="off" autocapitalize="words" placeholder="Monstera deliciosa">
 
-      <label for="f-water">Water schedule</label>
+      <fieldset class="sched">
+        <legend>Watering schedule</legend>
+        <div class="seg">
+          <label><input type="radio" name="sched" value="none" checked><span>None</span></label>
+          <label><input type="radio" name="sched" value="interval"><span>Every N days</span></label>
+          <label><input type="radio" name="sched" value="weekly"><span>Weekdays</span></label>
+        </div>
+
+        <div id="sched-interval" hidden>
+          <div class="inline">
+            <span>Water every</span>
+            <input id="f-days" type="number" min="1" max="365" step="1"
+                   inputmode="numeric" value="7">
+            <span>days, starting today</span>
+          </div>
+        </div>
+
+        <div id="sched-weekly" hidden>
+          <div class="days" id="f-days-of-week">
+            <label><input type="checkbox" value="1"><span>Mon</span></label>
+            <label><input type="checkbox" value="2"><span>Tue</span></label>
+            <label><input type="checkbox" value="3"><span>Wed</span></label>
+            <label><input type="checkbox" value="4"><span>Thu</span></label>
+            <label><input type="checkbox" value="5"><span>Fri</span></label>
+            <label><input type="checkbox" value="6"><span>Sat</span></label>
+            <label><input type="checkbox" value="0"><span>Sun</span></label>
+          </div>
+        </div>
+      </fieldset>
+
+      <label for="f-water">Watering notes</label>
       <input id="f-water" name="water" type="text" maxlength="200"
-             autocomplete="off" placeholder="Every 7 days, less in winter">
+             autocomplete="off" placeholder="Less in winter, let the soil dry out">
 
       <label for="f-notes">Notes</label>
       <textarea id="f-notes" name="notes" rows="6"

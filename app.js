@@ -23,6 +23,7 @@ let lastError = '';
 /* ---------- tiny helpers ---------- */
 
 const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => Array.prototype.slice.call(document.querySelectorAll(sel));
 
 function read(key, fallback) {
   try {
@@ -52,6 +53,39 @@ const live = () => plants.filter((p) => !p.deletedAt);
 
 const byName = (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
 
+/* =========================================================================
+   Calendar days
+
+   Schedules are about *days*, not instants, so they use local "YYYY-MM-DD"
+   keys throughout. Anything derived from a UTC timestamp would put the app a
+   day out of step for part of the evening.
+   ========================================================================= */
+
+const pad2 = (n) => String(n).padStart(2, '0');
+
+const keyOf = (date) =>
+  date.getFullYear() + '-' + pad2(date.getMonth() + 1) + '-' + pad2(date.getDate());
+
+const todayKey = () => keyOf(new Date());
+
+function parseKey(key) {
+  const parts = String(key).split('-').map(Number);
+  return new Date(parts[0], parts[1] - 1, parts[2]);
+}
+
+function addDays(key, n) {
+  const d = parseKey(key);
+  d.setDate(d.getDate() + n);
+  return keyOf(d);
+}
+
+/** Whole days from `from` to `to`; rounding keeps this right across DST. */
+const daysBetween = (from, to) =>
+  Math.round((parseKey(to) - parseKey(from)) / 86400000);
+
+const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const mondayFirst = (dow) => (dow + 6) % 7;
+
 function fmtDate(iso) {
   const d = new Date(iso);
   return isNaN(d) ? '' : d.toLocaleDateString(undefined, {
@@ -59,8 +93,125 @@ function fmtDate(iso) {
   });
 }
 
+function fmtDayKey(key) {
+  const d = parseKey(key);
+  return isNaN(d) ? '' : d.toLocaleDateString(undefined, {
+    weekday: 'short', month: 'short', day: 'numeric'
+  });
+}
+
 function fmtTime(date) {
   return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+}
+
+/* =========================================================================
+   Schedules
+
+   plant.schedule is one of:
+     null                                        no schedule
+     { type: 'interval', days: 7, start: 'YYYY-MM-DD' }
+     { type: 'weekly',   weekdays: [1, 5] }      0 = Sunday … 6 = Saturday
+
+   plant.lastWatered ('YYYY-MM-DD') moves the interval clock forward and takes
+   a plant off today's list once it has been watered.
+   ========================================================================= */
+
+function scheduleText(plant) {
+  const s = plant.schedule;
+  if (!s) return '';
+
+  if (s.type === 'interval') {
+    const n = Number(s.days) || 0;
+    if (n < 1) return '';
+    return n === 1 ? 'Every day' : 'Every ' + n + ' days';
+  }
+
+  if (s.type === 'weekly') {
+    const days = (s.weekdays || []).slice().sort((a, b) => mondayFirst(a) - mondayFirst(b));
+    if (!days.length) return '';
+    if (days.length === 7) return 'Every day';
+    return days.map((d) => DAY_SHORT[d]).join(', ');
+  }
+
+  return '';
+}
+
+/** The next day this plant wants water, as a date key, or '' if unscheduled. */
+function nextDueKey(plant, today) {
+  const s = plant.schedule;
+  if (!s) return '';
+
+  if (s.type === 'interval') {
+    const n = Number(s.days) || 0;
+    if (n < 1) return '';
+    const anchor = plant.lastWatered || s.start || today;
+    const next = addDays(anchor, n);
+    // An anchor far in the past should read as "due", not as a date in 2019.
+    return daysBetween(next, today) > 0 ? today : next;
+  }
+
+  if (s.type === 'weekly') {
+    const days = s.weekdays || [];
+    if (!days.length) return '';
+    const from = plant.lastWatered === today ? addDays(today, 1) : today;
+    for (let i = 0; i < 7; i++) {
+      const key = addDays(from, i);
+      if (days.indexOf(parseKey(key).getDay()) !== -1) return key;
+    }
+  }
+
+  return '';
+}
+
+/**
+ * How this plant stands today.
+ *   { due, late }  late is the number of whole days an interval is overdue.
+ */
+function waterStatus(plant, today) {
+  const s = plant.schedule;
+  if (!s) return { due: false, late: 0 };
+  if (plant.lastWatered === today) return { due: false, late: 0, watered: true };
+
+  if (s.type === 'interval') {
+    const n = Number(s.days) || 0;
+    if (n < 1) return { due: false, late: 0 };
+    const anchor = plant.lastWatered || s.start;
+    if (!anchor) return { due: false, late: 0 };
+    const late = daysBetween(addDays(anchor, n), today);
+    return { due: late >= 0, late: Math.max(0, late) };
+  }
+
+  if (s.type === 'weekly') {
+    const days = s.weekdays || [];
+    return { due: days.indexOf(parseKey(today).getDay()) !== -1, late: 0 };
+  }
+
+  return { due: false, late: 0 };
+}
+
+/** One line of plain English about where a plant stands. */
+function statusText(plant, today) {
+  if (!plant.schedule) return '';
+  const status = waterStatus(plant, today);
+
+  if (status.late > 0) return status.late === 1 ? '1 day late' : status.late + ' days late';
+  if (status.due) return 'Due today';
+  if (status.watered) return 'Watered today';
+
+  const next = nextDueKey(plant, today);
+  if (!next) return '';
+  const away = daysBetween(today, next);
+  if (away === 1) return 'Next tomorrow';
+  return 'Next ' + fmtDayKey(next);
+}
+
+function dueToday(today) {
+  return live()
+    .filter((p) => waterStatus(p, today).due)
+    .sort((a, b) => {
+      const late = waterStatus(b, today).late - waterStatus(a, today).late;
+      return late !== 0 ? late : byName(a, b);
+    });
 }
 
 /* ---------- status line ---------- */
@@ -183,11 +334,19 @@ function commit() {
   sync(true);
 }
 
+function markWatered(id) {
+  const p = plants.find((x) => x.id === id && !x.deletedAt);
+  if (!p) return;
+  p.lastWatered = todayKey();
+  p.updatedAt = new Date().toISOString();
+  commit();
+}
+
 /* =========================================================================
-   Routing — #/ , #/new , #/p/<id> , #/p/<id>/edit , #/settings
+   Routing — #/ , #/all , #/new , #/p/<id> , #/p/<id>/edit , #/settings
    ========================================================================= */
 
-const VIEWS = ['list', 'detail', 'edit', 'settings'];
+const VIEWS = ['list', 'all', 'detail', 'edit', 'settings'];
 
 function route() {
   return (location.hash || '#/').slice(1);
@@ -213,6 +372,7 @@ function render() {
   const path = route();
 
   if (path === '/settings') return renderSettings();
+  if (path === '/all') return renderAll();
   if (path === '/new') return renderForm(null);
 
   const editMatch = path.match(/^\/p\/([^/]+)\/edit$/);
@@ -221,44 +381,85 @@ function render() {
   const detailMatch = path.match(/^\/p\/([^/]+)$/);
   if (detailMatch) return renderDetail(detailMatch[1]);
 
-  return renderList();
+  return renderToday();
 }
 
-/* ---------- list ---------- */
+/* ---------- lists ---------- */
 
-function renderList() {
-  const items = live().sort(byName);
-  const ul = $('#plant-list');
-  ul.textContent = '';
+/**
+ * One row: a link to the plant, plus (on today's list) a button to tick it off
+ * without opening it.
+ */
+function plantRow(plant, today, withTick) {
+  const li = document.createElement('li');
 
-  for (const p of items) {
-    const a = document.createElement('a');
-    a.href = '#/p/' + encodeURIComponent(p.id);
+  const a = document.createElement('a');
+  a.href = '#/p/' + encodeURIComponent(plant.id);
 
-    const name = document.createElement('div');
-    name.className = 'name';
-    name.textContent = p.name;
-    a.appendChild(name);
+  const name = document.createElement('div');
+  name.className = 'name';
+  name.textContent = plant.name;
+  a.appendChild(name);
 
-    if (p.water) {
-      const sub = document.createElement('div');
-      sub.className = 'sub';
-      sub.textContent = p.water;
-      a.appendChild(sub);
-    }
+  const status = waterStatus(plant, today);
+  const detail = withTick ? statusText(plant, today)
+                          : [scheduleText(plant), statusText(plant, today)]
+                              .filter(Boolean).join(' · ') || plant.water || '';
+  if (detail) {
+    const sub = document.createElement('div');
+    sub.className = 'sub' + (status.late > 0 ? ' late' : '');
+    sub.textContent = detail;
+    a.appendChild(sub);
+  }
+  li.appendChild(a);
 
-    const li = document.createElement('li');
-    li.appendChild(a);
-    ul.appendChild(li);
+  if (withTick) {
+    const tick = document.createElement('button');
+    tick.type = 'button';
+    tick.className = 'tick';
+    tick.textContent = '✓';
+    tick.setAttribute('aria-label', 'Mark ' + plant.name + ' as watered');
+    tick.onclick = () => markWatered(plant.id);
+    li.appendChild(tick);
   }
 
-  $('#empty').hidden = items.length > 0;
-  show('list', items.length ? `Plants (${items.length})` : 'Plants', false);
+  return li;
+}
+
+function renderToday() {
+  const today = todayKey();
+  const all = live();
+  const due = dueToday(today);
+
+  const ul = $('#today-list');
+  ul.textContent = '';
+  for (const p of due) ul.appendChild(plantRow(p, today, true));
+
+  const hasPlants = all.length > 0;
+  $('#no-plants').hidden = hasPlants;
+  $('#today-heading').hidden = !hasPlants;
+  $('#today-empty').hidden = !hasPlants || due.length > 0;
+  $('#all-btn').hidden = !hasPlants;
+  $('#all-btn').textContent = `All plants (${all.length})`;
+
+  show('list', due.length ? `Today (${due.length})` : 'Today', false);
+}
+
+function renderAll() {
+  const today = todayKey();
+  const items = live().sort(byName);
+
+  const ul = $('#plant-list');
+  ul.textContent = '';
+  for (const p of items) ul.appendChild(plantRow(p, today, false));
+
+  show('all', `All plants (${items.length})`, true);
 }
 
 /* ---------- detail ---------- */
 
 function renderDetail(id) {
+  const today = todayKey();
   const p = plants.find((x) => x.id === id && !x.deletedAt);
   if (!p) {
     location.hash = '#/';
@@ -267,10 +468,28 @@ function renderDetail(id) {
 
   $('#d-name').textContent = p.name;
 
-  fill($('#d-water'), p.water, 'No schedule recorded');
+  const schedule = scheduleText(p);
+  const status = statusText(p, today);
+  fill($('#d-sched'), [schedule, status].filter(Boolean).join(' · '), 'No schedule set');
+  $('#d-sched').classList.toggle('late', waterStatus(p, today).late > 0);
+
+  fill($('#d-water'), p.water, 'No watering notes');
   fill($('#d-notes'), p.notes, 'No notes');
 
-  $('#d-meta').textContent = p.createdAt ? 'Added ' + fmtDate(p.createdAt) : '';
+  const meta = [];
+  if (p.createdAt) meta.push('Added ' + fmtDate(p.createdAt));
+  if (p.lastWatered) {
+    meta.push(p.lastWatered === today
+      ? 'Watered today'
+      : 'Last watered ' + fmtDayKey(p.lastWatered));
+  }
+  $('#d-meta').textContent = meta.join(' · ');
+
+  const watered = $('#d-watered');
+  watered.disabled = p.lastWatered === today;
+  watered.textContent = watered.disabled ? 'Watered today ✓' : 'Mark as watered';
+  watered.onclick = () => markWatered(p.id);
+
   $('#d-edit').href = '#/p/' + encodeURIComponent(p.id) + '/edit';
   $('#d-delete').onclick = () => {
     if (!confirm(`Delete “${p.name}”?`)) return;
@@ -290,6 +509,55 @@ function fill(node, text, placeholder) {
 
 /* ---------- add / edit ---------- */
 
+const schedRadios = () => $$('input[name="sched"]');
+const dayBoxes = () => $$('#f-days-of-week input[type="checkbox"]');
+
+function selectedSchedType() {
+  const checked = schedRadios().filter((r) => r.checked)[0];
+  return checked ? checked.value : 'none';
+}
+
+function showSchedPanels() {
+  const type = selectedSchedType();
+  $('#sched-interval').hidden = type !== 'interval';
+  $('#sched-weekly').hidden = type !== 'weekly';
+}
+
+function loadSchedule(plant) {
+  const s = (plant && plant.schedule) || null;
+  const type = s ? s.type : 'none';
+
+  for (const radio of schedRadios()) radio.checked = radio.value === type;
+  $('#f-days').value = (s && s.type === 'interval' && s.days) || 7;
+
+  const selected = (s && s.type === 'weekly' && s.weekdays) || [];
+  for (const box of dayBoxes()) box.checked = selected.indexOf(Number(box.value)) !== -1;
+
+  showSchedPanels();
+}
+
+/** Reads the schedule controls. Returns null for "no schedule". */
+function readSchedule(previous) {
+  const type = selectedSchedType();
+
+  if (type === 'interval') {
+    let days = parseInt($('#f-days').value, 10);
+    if (!isFinite(days) || days < 1) days = 1;
+    if (days > 365) days = 365;
+    // Keep the original anchor when only the interval length changed.
+    const start = (previous && previous.type === 'interval' && previous.start) || todayKey();
+    return { type: 'interval', days: days, start: start };
+  }
+
+  if (type === 'weekly') {
+    const weekdays = dayBoxes().filter((b) => b.checked).map((b) => Number(b.value));
+    if (!weekdays.length) return null;      // no days ticked means no schedule
+    return { type: 'weekly', weekdays: weekdays.sort((a, b) => a - b) };
+  }
+
+  return null;
+}
+
 function renderForm(id) {
   const p = id ? plants.find((x) => x.id === id && !x.deletedAt) : null;
   if (id && !p) {
@@ -303,6 +571,7 @@ function renderForm(id) {
   $('#f-water').value = p ? p.water || '' : '';
   $('#f-notes').value = p ? p.notes || '' : '';
   $('#f-name').classList.remove('invalid');
+  loadSchedule(p);
 
   form.onsubmit = (e) => {
     e.preventDefault();
@@ -316,11 +585,15 @@ function renderForm(id) {
     const now = new Date().toISOString();
     const water = $('#f-water').value.trim();
     const notes = $('#f-notes').value.trim();
+    const schedule = readSchedule(p && p.schedule);
 
     if (p) {
-      Object.assign(p, { name, water, notes, updatedAt: now });
+      Object.assign(p, { name, water, notes, schedule, updatedAt: now });
     } else {
-      plants.push({ id: uid(), name, water, notes, createdAt: now, updatedAt: now });
+      plants.push({
+        id: uid(), name, water, notes, schedule,
+        createdAt: now, updatedAt: now
+      });
     }
 
     commit();
@@ -345,7 +618,7 @@ function renderSettings() {
   } else if (lastSync) {
     server = `Synced with ${new URL(API).host} at ${fmtTime(lastSync)}.`;
   } else {
-    server = `Not synced yet this session.`;
+    server = 'Not synced yet this session.';
   }
 
   $('#s-server').textContent = server;
@@ -363,6 +636,8 @@ function renderSettings() {
 window.addEventListener('hashchange', render);
 
 $('#back').onclick = () => history.back();
+
+for (const radio of schedRadios()) radio.onchange = showSchedPanels;
 
 $('#s-sync').onclick = () => sync();
 
@@ -406,9 +681,12 @@ $('#s-forget').onclick = () => {
   sync(true);
 };
 
-// Coming back to a phone that has been asleep: re-check the server.
+// Coming back to a phone that has been asleep: re-check the server, and
+// re-render in case the date rolled over while it was in your pocket.
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) sync(true);
+  if (document.hidden) return;
+  refresh();
+  sync(true);
 });
 window.addEventListener('online', () => sync(true));
 

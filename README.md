@@ -1,8 +1,8 @@
 # Plants
 
 A personal database of the plants I own, served from a Raspberry Pi on the home
-network. Add a plant with a name, notes and a watering schedule; browse the
-list; open one to read the details.
+network. The home screen shows what needs water today; behind an **All plants**
+button is the full list, and each plant has notes and a watering schedule.
 
 No frameworks and no dependencies: a static page plus a ~250-line Python
 standard-library server. Nothing to install on the Pi beyond what Raspberry Pi
@@ -13,6 +13,37 @@ index.html  styles.css  app.js  icon*      the page
 server.py                                  static files + /api/plants
 plants.service  install.sh                 run it under systemd
 ```
+
+## Watering schedules
+
+A plant can have one of two schedules, or none at all:
+
+- **Every N days**, counted from the day you set it up, or from the last time
+  you watered it if that is more recent.
+- **Certain weekdays** — Mondays and Fridays, say.
+
+Both are shown on the home screen under *Water today*, most overdue first, each
+with a ✓ button to tick it off without opening the plant. A plant is off the
+list for the rest of the day once it is watered, and an interval plant that was
+missed keeps showing up, labelled `3 days late`, until it is dealt with.
+
+Two things worth knowing:
+
+- **A new "every N days" plant is not due the day you create it** — the clock
+  starts then, so the first watering falls N days later. The form says
+  *starting today* and the detail page shows the date, but if you want it in
+  today's list straight away, set the interval and then let it come round, or
+  use a weekday schedule instead.
+- **Missing a weekday schedule does not carry over.** If a Monday plant is not
+  watered on Monday, it is simply not due on Tuesday. That is what picking
+  weekdays means; use an interval if you want lateness tracked.
+
+The free-text watering note is still there, for the things a schedule cannot
+express — *less in winter*, *let the soil dry out*.
+
+Schedules are evaluated in **local calendar days**, not UTC instants, so the
+list rolls over at your midnight rather than somewhere in the evening. The date
+maths is checked against daylight-saving jumps in both directions.
 
 ## How it works
 
@@ -160,14 +191,30 @@ usual on an SD card. Prefer `sudo shutdown -h now` over pulling the plug.
     {
       "id": "m1a2b3-x9y8z7",
       "name": "Monstera deliciosa",
-      "water": "Every 7 days, less in winter",
+      "schedule": { "type": "interval", "days": 7, "start": "2026-08-19" },
+      "lastWatered": "2026-08-19",
+      "water": "Less in winter",
       "notes": "Bright indirect light. Repotted March 2026.",
+      "createdAt": "2026-08-19T10:00:00Z",
+      "updatedAt": "2026-08-19T10:00:00Z"
+    },
+    {
+      "id": "k9j8h7-a1b2c3",
+      "name": "Basil",
+      "schedule": { "type": "weekly", "weekdays": [1, 5] },
+      "water": "",
+      "notes": "Kitchen windowsill.",
       "createdAt": "2026-08-19T10:00:00Z",
       "updatedAt": "2026-08-19T10:00:00Z"
     }
   ]
 }
 ```
+
+`schedule` is `null` or absent when a plant has none, `weekdays` runs 0 = Sunday
+to 6 = Saturday, and `lastWatered` is a local date. Plants saved before
+schedules existed simply have no `schedule` key and never appear in *Water
+today* — nothing to migrate.
 
 A deleted plant keeps its entry with a `deletedAt` timestamp, so that a phone
 that was offline during the delete cannot bring it back.
