@@ -45,26 +45,45 @@
       <img id="d-photo" class="photo" alt="" hidden>
       <h2 id="d-name"></h2>
 
-      <div class="field">
-        <span class="label">Species <a id="d-species-from" class="from" href="#"></a></span>
-        <p id="d-species" class="value"></p>
+      <!-- The short facts share one card: seven bordered blocks in a column
+           pushed the notes off the bottom of a phone screen. -->
+      <div class="facts">
+        <div class="fact">
+          <span class="key">Species</span>
+          <span class="val" id="d-species"></span>
+          <a class="from" id="d-species-from" href="#"></a>
+        </div>
+        <div class="fact">
+          <span class="key">Where</span>
+          <span class="val" id="d-place"></span>
+        </div>
+        <div class="fact">
+          <span class="key">Temperature</span>
+          <span class="val" id="d-temp"></span>
+          <span class="from" id="d-temp-from"></span>
+        </div>
+        <div class="fact">
+          <span class="key">Humidity</span>
+          <span class="val" id="d-humidity"></span>
+          <span class="from" id="d-humidity-from"></span>
+        </div>
+        <div class="fact">
+          <span class="key">Soil pH</span>
+          <span class="val" id="d-ph"></span>
+          <span class="from" id="d-ph-from"></span>
+        </div>
+        <div class="fact">
+          <span class="key">Light</span>
+          <span class="val" id="d-light"></span>
+          <span class="from" id="d-light-from"></span>
+        </div>
+        <div class="fact">
+          <span class="key">Schedule</span>
+          <span class="val" id="d-sched"></span>
+          <span class="from" id="d-sched-from"></span>
+        </div>
       </div>
-      <div class="field">
-        <span class="label">Where</span>
-        <p id="d-place" class="value"></p>
-      </div>
-      <div class="field">
-        <span class="label">Temperature <span id="d-temp-from" class="from"></span></span>
-        <p id="d-temp" class="value"></p>
-      </div>
-      <div class="field">
-        <span class="label">Humidity <span id="d-humidity-from" class="from"></span></span>
-        <p id="d-humidity" class="value"></p>
-      </div>
-      <div class="field">
-        <span class="label">Schedule <span id="d-sched-from" class="from"></span></span>
-        <p id="d-sched" class="value"></p>
-      </div>
+
       <div class="field">
         <span class="label">Watering notes</span>
         <p id="d-water" class="value"></p>
@@ -139,9 +158,9 @@
       </fieldset>
 
       <fieldset class="group">
-        <legend>Humidity</legend>
+        <legend>Humidity and soil</legend>
         <div class="inline">
-          <span>Happy at</span>
+          <span>Humidity</span>
           <input id="f-hum-min" type="number" min="0" max="100" step="1"
                  inputmode="numeric" aria-label="Comfortable low, per cent">
           <span>to</span>
@@ -150,6 +169,30 @@
           <span>%</span>
         </div>
         <p id="f-hum-error" class="hint error" hidden></p>
+        <div class="inline">
+          <span>Soil pH</span>
+          <input id="f-ph-min" type="number" min="0" max="14" step="0.1"
+                 inputmode="decimal" aria-label="Lowest soil pH">
+          <span>to</span>
+          <input id="f-ph-max" type="number" min="0" max="14" step="0.1"
+                 inputmode="decimal" aria-label="Highest soil pH">
+        </div>
+        <p id="f-ph-error" class="hint error" hidden></p>
+      </fieldset>
+
+      <fieldset class="group">
+        <legend>Light</legend>
+        <div class="inline">
+          <span>About</span>
+          <input id="f-light-hours" type="number" min="0" max="24" step="1"
+                 inputmode="numeric" aria-label="Hours of light a day">
+          <span>hours a day</span>
+        </div>
+        <div class="seg">
+          <label><input type="radio" name="light" value="none" checked><span>Not set</span></label>
+          <label><input type="radio" name="light" value="direct"><span>Direct</span></label>
+          <label><input type="radio" name="light" value="indirect"><span>Indirect</span></label>
+        </div>
       </fieldset>
 
       <fieldset class="group">
@@ -203,7 +246,7 @@
   <section id="view-species" class="view" hidden>
     <ul id="species-list" class="list"></ul>
     <p id="no-species" class="empty" hidden>No species yet.<br><span>A species holds the
-      temperature, humidity and watering schedule shared by every plant of that kind.</span></p>
+      conditions and the watering schedule shared by every plant of that kind.</span></p>
     <div class="row">
       <a class="btn primary" href="#/s/new">Add a species</a>
     </div>
@@ -243,9 +286,9 @@
       </fieldset>
 
       <fieldset class="group">
-        <legend>Humidity</legend>
+        <legend>Humidity and soil</legend>
         <div class="inline">
-          <span>Happy at</span>
+          <span>Humidity</span>
           <input id="sp-hum-min" type="number" min="0" max="100" step="1"
                  inputmode="numeric" aria-label="Comfortable low, per cent">
           <span>to</span>
@@ -254,6 +297,30 @@
           <span>%</span>
         </div>
         <p id="sp-hum-error" class="hint error" hidden></p>
+        <div class="inline">
+          <span>Soil pH</span>
+          <input id="sp-ph-min" type="number" min="0" max="14" step="0.1"
+                 inputmode="decimal" aria-label="Lowest soil pH">
+          <span>to</span>
+          <input id="sp-ph-max" type="number" min="0" max="14" step="0.1"
+                 inputmode="decimal" aria-label="Highest soil pH">
+        </div>
+        <p id="sp-ph-error" class="hint error" hidden></p>
+      </fieldset>
+
+      <fieldset class="group">
+        <legend>Light</legend>
+        <div class="inline">
+          <span>About</span>
+          <input id="sp-light-hours" type="number" min="0" max="24" step="1"
+                 inputmode="numeric" aria-label="Hours of light a day">
+          <span>hours a day</span>
+        </div>
+        <div class="seg">
+          <label><input type="radio" name="sp-light" value="none" checked><span>Not set</span></label>
+          <label><input type="radio" name="sp-light" value="direct"><span>Direct</span></label>
+          <label><input type="radio" name="sp-light" value="indirect"><span>Indirect</span></label>
+        </div>
       </fieldset>
 
       <fieldset class="group">

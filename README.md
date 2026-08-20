@@ -43,8 +43,8 @@ what the next section is about.
 ## Species
 
 A species record holds what is true of every plant of that kind — the
-temperatures, the humidity, and how often it wants water — and nothing that
-belongs to an individual. No watering notes, no notes, no photo, and no record
+temperatures, the humidity, the soil pH, the light it wants, and how often it
+wants water — and nothing that belongs to an individual. No watering notes, no notes, no photo, and no record
 of when anything was last watered.
 
 A plant follows one by having exactly that name in its own species box; the
@@ -144,31 +144,50 @@ Nothing else keys off it: it does not filter the lists and does not affect
 schedules. Plants added before it existed read as *Not set* until you say
 otherwise, and can be left that way indefinitely.
 
-## Temperature and humidity
+## Conditions
 
-Six optional numbers. Four temperatures in whole °C — the range the plant is
-*happy* in, and the wider range it merely *survives* — and two humidities in
-whole per cent. Fill in whichever you know and leave the rest blank; a plant
-recorded only as surviving down to 5 °C is a perfectly good record.
+Four groups of optional figures, on a plant or on its species:
 
-The detail page reads each group back as one line, `18–27 °C · Survives 5 to
-38 °C` and `40–60%`, collapsing to a bound where only one end of a range is
-set: *Above 12 °C*, *Below 60%*, *Survives up to 38 °C*.
+| | |
+|---|---|
+| **Temperature** | four in whole °C — the range it is *happy* in, and the wider one it merely *survives* |
+| **Humidity** | two, in whole per cent |
+| **Soil pH** | two, on the 0–14 scale, kept to one decimal place |
+| **Light** | roughly how many hours a day, and whether that light is direct or indirect |
+
+Fill in whichever you know and leave the rest blank; a plant recorded only as
+surviving down to 5 °C is a perfectly good record.
+
+The detail page reads each group back on one line — `18–27 °C · Survives 5 to
+38 °C`, `40–60%`, `5.5–6.5`, `6 hours of indirect light` — collapsing to a
+bound where only one end of a range is set: *Above 12 °C*, *Below 60%*,
+*Survives up to 38 °C*. Either half of the light stands alone too: *Direct
+light* with no hours, or *6 hours of light* with no flag.
+
+**pH is the one kept to a decimal**, because the difference between 6 and 6.5
+is the difference between a happy hydrangea and a chlorotic one. Everything
+else rounds to whole numbers, where a decimal would be false precision.
 
 The one rule enforced is **order**. Coldest to warmest the temperatures are
-`absMin`, `avgMin`, `avgMax`, `absMax`; humidity is `min` then `max`. Within a
-group each figure must be at least the one before it. Blanks are skipped rather
+`absMin`, `avgMin`, `avgMax`, `absMax`; humidity and pH are `min` then `max`.
+Within a group each figure must be at least the one before it. Blanks are skipped rather
 than counted as zero, so filling in only the two comfortable temperatures
 checks them against each other and nothing else, and the two groups are never
 compared with one another. Saving stops with the offending box highlighted
 rather than storing a range that reads backwards — and both groups are checked
 on every attempt, so a complaint about a box you have since fixed does not
-linger while you deal with the other one. Figures outside -60…60 °C or 0…100%
-are clamped rather than refused.
+linger while you deal with the other one. Figures outside their scale —
+-60…60 °C, 0…100%, pH 0…14, 0…24 hours — are clamped rather than refused.
 
 Nothing else keys off them: they do not affect schedules, and they are kept off
-the list lines, which already carry the place and the watering status. Plants
-added before the fields existed read as *Not set*.
+the plant list lines, which already carry the place and the watering status —
+though a species row summarises all of them, since that is the whole point of a
+species. Plants added before any of these existed read as *Not set*.
+
+The short facts — species, place, all four groups and the schedule — share a
+single card on the plant's page rather than getting a bordered block each.
+Seven stacked blocks pushed the notes and the buttons off the bottom of a phone
+screen; the free-text notes still get the room they need underneath.
 
 ## Photos
 
@@ -365,6 +384,8 @@ usual on an SD card. Prefer `sudo shutdown -h now` over pulling the plug.
       "name": "Monstera deliciosa",
       "temps": { "absMin": 5, "avgMin": 18, "avgMax": 27, "absMax": 38 },
       "humidity": { "min": 40, "max": 60 },
+      "ph": { "min": 5.5, "max": 7 },
+      "light": { "hours": 6, "kind": "indirect" },
       "schedule": { "type": "interval", "days": 7 },
       "createdAt": "2026-08-19T09:00:00Z",
       "updatedAt": "2026-08-19T09:00:00Z"
@@ -379,6 +400,8 @@ usual on an SD card. Prefer `sudo shutdown -h now` over pulling the plug.
       "place": "inside",
       "temps": null,
       "humidity": { "min": 55, "max": 75 },
+      "ph": null,
+      "light": { "hours": 3, "kind": "direct" },
       "schedule": null,
       "lastWatered": "2026-08-19",
       "photo": "2026-08-19T10:04:00.000Z",
@@ -394,6 +417,8 @@ usual on an SD card. Prefer `sudo shutdown -h now` over pulling the plug.
       "place": "outside",
       "temps": { "avgMin": 15 },
       "humidity": null,
+      "ph": null,
+      "light": null,
       "schedule": { "type": "weekly", "weekdays": [1, 5] },
       "water": "",
       "notes": "Kitchen windowsill.",
@@ -405,8 +430,9 @@ usual on an SD card. Prefer `sudo shutdown -h now` over pulling the plug.
 ```
 
 A plant with `speciesId` set follows that species wherever its own value is
-`null` or absent — the Monstera above takes its temperatures and its watering
-interval from the record, and overrides only the humidity. `species` is the
+`null` or absent — the Monstera above takes its temperatures, its soil pH and
+its watering interval from the record, and overrides the humidity and the
+light. `species` is the
 text that was typed; it is kept in step when a species is renamed, and stands
 alone for a plant not linked to any record. A `speciesId` naming a species this
 device has not synced yet resolves to nothing rather than being an error.

@@ -65,11 +65,14 @@ const PLACE = { inside: 'Inside', outside: 'Outside' };
 const placeText = (plant) => PLACE[plant.place] || '';
 
 /* =========================================================================
-   Temperature and humidity
+   Conditions
 
-   plant.temps is { absMin, avgMin, avgMax, absMax }, in whole °C: the range
-   the plant is happy in, and the wider one it merely survives. plant.humidity
-   is { min, max }, in whole per cent.
+   Four groups, each of which a plant or a species may carry:
+
+     temps     { absMin, avgMin, avgMax, absMax }  whole °C
+     humidity  { min, max }                        whole per cent
+     ph        { min, max }                        0–14, one decimal place
+     light     { hours, kind }                     hours a day, direct/indirect
 
    Every figure is optional. A key is present only once it has been filled in,
    and the group itself is null or absent until at least one of its figures
@@ -115,13 +118,34 @@ function tempText(plant) {
 const humidityText = (plant) =>
   rangeText(humid(plant, 'min'), humid(plant, 'max'), PER_CENT);
 
+/* Soil acidity, { min, max }, on the usual 0–14 scale. Unlike the others this
+   one is kept to a decimal place: the difference between pH 6 and pH 6.5 is
+   the difference between happy and chlorotic. */
+const phText = (plant) =>
+  rangeText(figure(plant, 'ph', 'min'), figure(plant, 'ph', 'max'), '');
+
+/* Light is { hours, kind }, either half optional: how long it wants, and
+   whether that light should fall on it directly. */
+const LIGHT = { direct: 'direct', indirect: 'indirect' };
+
+function lightText(plant) {
+  const hours = figure(plant, 'light', 'hours');
+  const kind = (plant.light && LIGHT[plant.light.kind]) || '';
+  const spell = hours === null ? '' : (hours === 1 ? '1 hour' : hours + ' hours');
+
+  if (spell && kind) return spell + ' of ' + kind + ' light';
+  if (spell) return spell + ' of light';
+  if (kind) return kind.charAt(0).toUpperCase() + kind.slice(1) + ' light';
+  return '';
+}
+
 /* =========================================================================
    Species and inheritance
 
-   A species record carries what is true of every plant of that kind — the
-   temperatures, the humidity, and how often it wants water — and nothing that
-   belongs to an individual: no watering notes, no notes, no photo, no diary
-   of when it was last watered.
+   A species record carries what is true of every plant of that kind — all
+   four condition groups above, and how often it wants water — and nothing
+   that belongs to an individual: no watering notes, no notes, no photo, no
+   diary of when it was last watered.
 
    A plant follows one through `speciesId`. Wherever the plant leaves a group
    unset the species' figure applies; anything the plant fills in wins. Since
@@ -799,13 +823,10 @@ function renderDetail(id) {
 
   // Figures may be the plant's own or its species'; say which, so that a
   // number you did not type is never mistaken for one you did.
-  const temps = inherited(p, 'temps');
-  const humidity = inherited(p, 'humidity');
-  fill($('#d-temp'), temps.value ? tempText({ temps: temps.value }) : '', 'Not set');
-  fill($('#d-humidity'),
-       humidity.value ? humidityText({ humidity: humidity.value }) : '', 'Not set');
-  markInherited($('#d-temp-from'), temps.from);
-  markInherited($('#d-humidity-from'), humidity.from);
+  showResolved(p, 'temps', '#d-temp', tempText);
+  showResolved(p, 'humidity', '#d-humidity', humidityText);
+  showResolved(p, 'ph', '#d-ph', phText);
+  showResolved(p, 'light', '#d-light', lightText);
   markInherited($('#d-sched-from'), inherited(p, 'schedule').from);
 
   const schedule = scheduleText(p);
@@ -859,6 +880,20 @@ function renderDetail(id) {
   show('detail', p.name, true);
 }
 
+/**
+ * Write one resolved group into its row on the detail page, flagged with
+ * where it came from. `format` is handed an object carrying just that group,
+ * so it reads the species' figures rather than the plant's empty ones.
+ */
+function showResolved(plant, key, selector, format) {
+  const found = inherited(plant, key);
+  const holder = {};
+  holder[key] = found.value;
+
+  fill($(selector), found.value ? format(holder) : '', 'Not set');
+  markInherited($(selector + '-from'), found.from);
+}
+
 /** Flags a detail field whose value came from the species, not the plant. */
 function markInherited(node, from) {
   node.hidden = from !== 'species';
@@ -910,6 +945,16 @@ function figureGroups(prefix) {
       ceiling: 100,
       error: at('hum-error'),
       message: 'The first figure cannot be higher than the second.'
+    },
+    {
+      group: 'ph',
+      fields: { min: at('ph-min'), max: at('ph-max') },
+      placeholders: { min: '6', max: '7' },
+      floor: 0,
+      ceiling: 14,
+      decimals: 1,
+      error: at('ph-error'),
+      message: 'The first figure cannot be higher than the second.'
     }
   ];
 }
@@ -940,6 +985,12 @@ function showInherited(spec, from) {
   }
 }
 
+/** Whole numbers everywhere except pH, which is kept to one decimal place. */
+function roundTo(value, decimals) {
+  const factor = Math.pow(10, decimals || 0);
+  return Math.round(value * factor) / factor;
+}
+
 /** Reads one group's boxes. Returns null when none of them were filled in. */
 function readFigures(spec) {
   const out = {};
@@ -947,7 +998,7 @@ function readFigures(spec) {
   for (const key of Object.keys(spec.fields)) {
     const raw = $(spec.fields[key]).value.trim();
     if (!raw) continue;
-    const value = Math.round(Number(raw));
+    const value = roundTo(Number(raw), spec.decimals);
     if (!isFinite(value)) continue;      // a browser that let something odd through
     out[key] = Math.min(spec.ceiling, Math.max(spec.floor, value));
     any = true;
@@ -978,6 +1029,50 @@ function markFigureProblem(spec, values) {
   $(spec.error).textContent = wrong ? spec.message : '';
   $(spec.error).hidden = !wrong;
   return wrong;
+}
+
+/* Light is a number and a choice rather than a range, so it gets its own pair
+   of readers instead of joining the figure groups above. */
+function lightControls(prefix) {
+  return {
+    hours: '#' + prefix + '-light-hours',
+    radios: 'input[name="' + (prefix === 'f' ? 'light' : prefix + '-light') + '"]'
+  };
+}
+
+const PLANT_LIGHT = lightControls('f');
+const SPECIES_LIGHT = lightControls('sp');
+
+function loadLight(spec, record, from) {
+  const hours = record ? figure(record, 'light', 'hours') : null;
+  $(spec.hours).value = hours === null ? '' : hours;
+
+  const kind = (record && record.light && record.light.kind) || 'none';
+  for (const radio of $$(spec.radios)) radio.checked = radio.value === kind;
+
+  showInheritedLight(spec, from);
+}
+
+/** The hours box borrows its species' figure as a placeholder, as ranges do. */
+function showInheritedLight(spec, from) {
+  const hours = from ? figure(from, 'light', 'hours') : null;
+  $(spec.hours).placeholder = hours === null ? '6' : String(hours);
+}
+
+/** Reads the light controls. Returns null when neither half was filled in. */
+function readLight(spec) {
+  const out = {};
+
+  const raw = $(spec.hours).value.trim();
+  if (raw) {
+    const hours = Math.round(Number(raw));
+    if (isFinite(hours)) out.hours = Math.min(24, Math.max(0, hours));
+  }
+
+  const checked = $$(spec.radios).filter((r) => r.checked)[0];
+  if (checked && checked.value !== 'none') out.kind = checked.value;
+
+  return 'hours' in out || 'kind' in out ? out : null;
 }
 
 /* The schedule controls, for whichever form is asking. A species schedule is
@@ -1057,8 +1152,8 @@ function applySpeciesToForm() {
   const hint = $('#f-species-hint');
 
   if (!typed) {
-    hint.textContent = 'Optional. Naming a species shares its temperature, ' +
-                       'humidity and watering schedule with every plant of that kind.';
+    hint.textContent = 'Optional. Naming a species shares its conditions and ' +
+                       'watering schedule with every plant of that kind.';
   } else if (parent) {
     hint.textContent = 'Linked to ' + parent.name +
                        '. Anything left empty below follows it.';
@@ -1068,6 +1163,7 @@ function applySpeciesToForm() {
   }
 
   for (const spec of GROUPS) showInherited(spec, parent);
+  showInheritedLight(PLANT_LIGHT, parent);
   showSchedHint(parent);
   return parent;
 }
@@ -1101,8 +1197,9 @@ function renderForm(id) {
   $('#f-species').value = p ? p.species || '' : '';
   loadPlace(p);
   for (const spec of GROUPS) loadFigures(spec, p);
+  loadLight(PLANT_LIGHT, p);
   loadSchedule(PLANT_SCHED, p);
-  applySpeciesToForm();
+  applySpeciesToForm();      // fills in what the species would supply
 
   form.onsubmit = (e) => {
     e.preventDefault();
@@ -1133,6 +1230,8 @@ function renderForm(id) {
     const speciesId = parent ? parent.id : '';
     const temps = figures.temps;
     const humidity = figures.humidity;
+    const ph = figures.ph;
+    const light = readLight(PLANT_LIGHT);
     const water = $('#f-water').value.trim();
     const notes = $('#f-notes').value.trim();
     const place = readPlace();
@@ -1141,10 +1240,11 @@ function renderForm(id) {
     let saved = p;
     if (p) {
       Object.assign(p, { name, species: speciesName, speciesId, place, temps,
-                         humidity, water, notes, schedule, updatedAt: now });
+                         humidity, ph, light, water, notes, schedule, updatedAt: now });
     } else {
       saved = { id: uid(), name, species: speciesName, speciesId, place, temps,
-                humidity, water, notes, schedule, createdAt: now, updatedAt: now };
+                humidity, ph, light, water, notes, schedule,
+                createdAt: now, updatedAt: now };
       plants.push(saved);
     }
 
@@ -1169,8 +1269,11 @@ function renderForm(id) {
 /* ---------- species ---------- */
 
 /** The one-line summary of what a species says, for its row in the list. */
-const speciesSummary = (record) =>
-  [tempText(record), humidityText(record), scheduleText(record)].filter(Boolean).join(' · ');
+const speciesSummary = (record) => {
+  const ph = phText(record);
+  return [tempText(record), humidityText(record), ph && 'pH ' + ph,
+          lightText(record), scheduleText(record)].filter(Boolean).join(' · ');
+};
 
 const followerCount = (record) => live().filter((p) => p.speciesId === record.id).length;
 
@@ -1221,6 +1324,7 @@ function renderSpeciesForm(id) {
   $('#sp-name').value = record ? record.name : '';
   $('#sp-name').classList.remove('invalid');
   for (const spec of SPECIES_GROUPS) loadFigures(spec, record, null);
+  loadLight(SPECIES_LIGHT, record, null);
   loadSchedule(SPECIES_SCHED, record);
 
   const remove = $('#sp-delete');
@@ -1269,15 +1373,16 @@ function renderSpeciesForm(id) {
 
     const now = new Date().toISOString();
     const schedule = readSchedule(SPECIES_SCHED, null);
+    const light = readLight(SPECIES_LIGHT);
     const wasCalled = record ? record.name : '';
 
     let saved = record;
     if (record) {
       Object.assign(record, { name, temps: figures.temps, humidity: figures.humidity,
-                              schedule, updatedAt: now });
+                              ph: figures.ph, light, schedule, updatedAt: now });
     } else {
       saved = { id: uid(), name, temps: figures.temps, humidity: figures.humidity,
-                schedule, createdAt: now, updatedAt: now };
+                ph: figures.ph, light, schedule, createdAt: now, updatedAt: now };
       species.push(saved);
     }
 

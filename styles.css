@@ -277,16 +277,42 @@ main { max-width: 720px; margin: 0 auto; }
 .value.blank { color: var(--ink-dim); font-style: italic; }
 .value.late { color: var(--danger); font-weight: 600; }
 
-/* "inherited" / "open" beside a field label: the label is uppercase and
-   letter-spaced, so everything about that has to be undone here. */
-.label .from {
-  margin-left: 6px;
+/* The short facts share one card, a labelled row each: as separate bordered
+   blocks they pushed the notes and the buttons off a phone screen. */
+.facts {
+  margin: 0 0 20px;
+  padding: 0 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.fact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  padding: 10px 0;
+}
+.fact + .fact { border-top: 1px solid var(--line); }
+
+.fact .key {
+  flex: none;
+  width: 6.6em;
+  color: var(--ink-dim);
+  font-size: 13px;
+  font-weight: 600;
+}
+.fact .val { flex: 1 1 8em; min-width: 0; }
+.fact .val.blank { color: var(--ink-dim); font-style: italic; }
+.fact .val.late { color: var(--danger); font-weight: 600; }
+
+/* "inherited", and the link through to a plant's species */
+.from {
+  flex: none;
   color: var(--ink-dim);
   font-size: 11px;
-  font-weight: 400;
   font-style: italic;
-  text-transform: none;
-  letter-spacing: 0;
 }
 a.from { color: var(--accent); font-style: normal; text-decoration: underline; }
 
