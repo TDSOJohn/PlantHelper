@@ -57,9 +57,22 @@ was until a record by that name exists.
 Anywhere a plant leaves a group **empty**, its species' figure applies. Anything
 the plant fills in wins, field group by field group — so a species can set the
 temperature while one particular plant on a cold windowsill sets its own. On the
-form, an empty box shows the figure it would inherit as its placeholder; on the
 plant's page, a value that came from the species is labelled *inherited*, so a
 number you did not type is never mistaken for one you did.
+
+On the forms a box is in one of three states, styled apart because two of them
+are grey and would otherwise read as figures somebody had entered:
+
+| | |
+|---|---|
+| **filled in** | upright, a little heavier, firmer border |
+| **empty** | a dim italic example of the sort of figure that belongs there |
+| **inheriting** | the figure the linked species actually supplies — accent-coloured, dashed border: grey enough to read as untyped, coloured enough to read as real |
+
+The third appears only on a plant that follows a species, and only for figures
+that species genuinely gives; being linked is not enough. Typing turns the box
+into an ordinary filled one, and emptying it brings the inherited figure
+straight back.
 
 This works because *unset* was already how those fields read. Every plant that
 existed before species did inherits nothing and behaves exactly as it always

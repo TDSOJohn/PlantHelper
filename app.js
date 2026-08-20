@@ -977,11 +977,18 @@ function loadFigures(spec, record, from) {
  * Put whatever the plant would inherit into the empty boxes as their
  * placeholder, so that "left blank" visibly means "18 from the species"
  * rather than looking like nothing at all.
+ *
+ * The `inheriting` class separates the two kinds of grey figure a box can
+ * show: a plain example of what belongs there, and a real figure that will
+ * apply if the box is left alone. They are worth telling apart — the second
+ * is data, the first is only a hint.
  */
 function showInherited(spec, from) {
   for (const key of Object.keys(spec.fields)) {
     const value = from ? figure(from, spec.group, key) : null;
-    $(spec.fields[key]).placeholder = value === null ? spec.placeholders[key] : String(value);
+    const box = $(spec.fields[key]);
+    box.placeholder = value === null ? spec.placeholders[key] : String(value);
+    box.classList.toggle('inheriting', value !== null);
   }
 }
 
@@ -1087,7 +1094,9 @@ function loadLight(spec, record, from) {
 /** The hours box borrows its species' figure as a placeholder, as ranges do. */
 function showInheritedLight(spec, from) {
   const hours = from ? figure(from, 'light', 'hours') : null;
-  $(spec.hours).placeholder = hours === null ? '6' : String(hours);
+  const box = $(spec.hours);
+  box.placeholder = hours === null ? '6' : String(hours);
+  box.classList.toggle('inheriting', hours !== null);
 }
 
 /** Reads the light controls. Returns null when neither half was filled in. */

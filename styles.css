@@ -353,6 +353,37 @@ input:focus, textarea:focus {
 }
 textarea { resize: vertical; }
 
+/* Three states a box can be in, and they must not look alike:
+
+     typed in    upright, full contrast, a touch heavier
+     empty       a dim italic example of what belongs there
+     inheriting  the figure a linked species actually supplies, in the accent
+                 colour — grey enough to read as "not typed", coloured enough
+                 to read as real
+
+   Without this the browser default made a suggested "18" look much like an
+   18 somebody had entered. */
+input::placeholder,
+textarea::placeholder {
+  color: var(--ink-dim);
+  font-style: italic;
+  opacity: 0.75;
+}
+
+input:not(:placeholder-shown) {
+  font-weight: 600;
+  border-color: var(--ink-dim);
+}
+
+input.inheriting::placeholder {
+  color: var(--accent);
+  font-style: normal;
+  opacity: 0.85;
+}
+/* Only while the inherited figure is the thing on show — once you type, the
+   box is yours and looks like every other filled one. */
+input.inheriting:placeholder-shown { border-style: dashed; }
+
 input.invalid { border-color: var(--danger); }
 
 .hint {
