@@ -46,7 +46,7 @@
       <h2 id="d-name"></h2>
 
       <div class="field">
-        <span class="label">Species</span>
+        <span class="label">Species <a id="d-species-from" class="from" href="#"></a></span>
         <p id="d-species" class="value"></p>
       </div>
       <div class="field">
@@ -54,15 +54,15 @@
         <p id="d-place" class="value"></p>
       </div>
       <div class="field">
-        <span class="label">Temperature</span>
+        <span class="label">Temperature <span id="d-temp-from" class="from"></span></span>
         <p id="d-temp" class="value"></p>
       </div>
       <div class="field">
-        <span class="label">Humidity</span>
+        <span class="label">Humidity <span id="d-humidity-from" class="from"></span></span>
         <p id="d-humidity" class="value"></p>
       </div>
       <div class="field">
-        <span class="label">Schedule</span>
+        <span class="label">Schedule <span id="d-sched-from" class="from"></span></span>
         <p id="d-sched" class="value"></p>
       </div>
       <div class="field">
@@ -103,6 +103,7 @@
       <input id="f-species" name="species" type="text" maxlength="80"
              autocomplete="off" autocapitalize="sentences" autocorrect="off"
              spellcheck="false" placeholder="Monstera deliciosa">
+      <p id="f-species-hint" class="hint"></p>
 
       <fieldset class="group">
         <legend>Where it lives</legend>
@@ -118,19 +119,19 @@
         <div class="inline">
           <span>Happy at</span>
           <input id="f-avg-min" type="number" min="-60" max="60" step="1"
-                 inputmode="numeric" placeholder="18" aria-label="Comfortable low, °C">
+                 inputmode="numeric" aria-label="Comfortable low, °C">
           <span>to</span>
           <input id="f-avg-max" type="number" min="-60" max="60" step="1"
-                 inputmode="numeric" placeholder="27" aria-label="Comfortable high, °C">
+                 inputmode="numeric" aria-label="Comfortable high, °C">
           <span>°C</span>
         </div>
         <div class="inline">
           <span>Survives</span>
           <input id="f-abs-min" type="number" min="-60" max="60" step="1"
-                 inputmode="numeric" placeholder="5" aria-label="Absolute low, °C">
+                 inputmode="numeric" aria-label="Absolute low, °C">
           <span>to</span>
           <input id="f-abs-max" type="number" min="-60" max="60" step="1"
-                 inputmode="numeric" placeholder="38" aria-label="Absolute high, °C">
+                 inputmode="numeric" aria-label="Absolute high, °C">
           <span>°C</span>
         </div>
         <p id="f-temp-error" class="hint error" hidden></p>
@@ -142,10 +143,10 @@
         <div class="inline">
           <span>Happy at</span>
           <input id="f-hum-min" type="number" min="0" max="100" step="1"
-                 inputmode="numeric" placeholder="40" aria-label="Comfortable low, per cent">
+                 inputmode="numeric" aria-label="Comfortable low, per cent">
           <span>to</span>
           <input id="f-hum-max" type="number" min="0" max="100" step="1"
-                 inputmode="numeric" placeholder="60" aria-label="Comfortable high, per cent">
+                 inputmode="numeric" aria-label="Comfortable high, per cent">
           <span>%</span>
         </div>
         <p id="f-hum-error" class="hint error" hidden></p>
@@ -179,6 +180,7 @@
             <label><input type="checkbox" value="0"><span>Sun</span></label>
           </div>
         </div>
+        <p id="f-sched-hint" class="hint" hidden></p>
       </fieldset>
 
       <label for="f-water">Watering notes</label>
@@ -192,6 +194,106 @@
       <div class="row">
         <button type="submit" class="btn primary">Save</button>
         <button type="button" id="f-cancel" class="btn">Cancel</button>
+      </div>
+    </form>
+  </section>
+
+
+  <!-- ---------- species ---------- -->
+  <section id="view-species" class="view" hidden>
+    <ul id="species-list" class="list"></ul>
+    <p id="no-species" class="empty" hidden>No species yet.<br><span>A species holds the
+      temperature, humidity and watering schedule shared by every plant of that kind.</span></p>
+    <div class="row">
+      <a class="btn primary" href="#/s/new">Add a species</a>
+    </div>
+  </section>
+
+  <!-- ---------- add / edit a species ---------- -->
+  <section id="view-species-edit" class="view" hidden>
+    <form id="sp-form" class="form" novalidate>
+      <label for="sp-name">Species</label>
+      <input id="sp-name" name="sp-name" type="text" required maxlength="80"
+             autocomplete="off" autocapitalize="sentences" autocorrect="off"
+             spellcheck="false" placeholder="Monstera deliciosa">
+      <p class="hint">A plant joins this species by having exactly this name in its
+        own species box.</p>
+
+      <fieldset class="group">
+        <legend>Temperature</legend>
+        <div class="inline">
+          <span>Happy at</span>
+          <input id="sp-avg-min" type="number" min="-60" max="60" step="1"
+                 inputmode="numeric" aria-label="Comfortable low, °C">
+          <span>to</span>
+          <input id="sp-avg-max" type="number" min="-60" max="60" step="1"
+                 inputmode="numeric" aria-label="Comfortable high, °C">
+          <span>°C</span>
+        </div>
+        <div class="inline">
+          <span>Survives</span>
+          <input id="sp-abs-min" type="number" min="-60" max="60" step="1"
+                 inputmode="numeric" aria-label="Absolute low, °C">
+          <span>to</span>
+          <input id="sp-abs-max" type="number" min="-60" max="60" step="1"
+                 inputmode="numeric" aria-label="Absolute high, °C">
+          <span>°C</span>
+        </div>
+        <p id="sp-temp-error" class="hint error" hidden></p>
+      </fieldset>
+
+      <fieldset class="group">
+        <legend>Humidity</legend>
+        <div class="inline">
+          <span>Happy at</span>
+          <input id="sp-hum-min" type="number" min="0" max="100" step="1"
+                 inputmode="numeric" aria-label="Comfortable low, per cent">
+          <span>to</span>
+          <input id="sp-hum-max" type="number" min="0" max="100" step="1"
+                 inputmode="numeric" aria-label="Comfortable high, per cent">
+          <span>%</span>
+        </div>
+        <p id="sp-hum-error" class="hint error" hidden></p>
+      </fieldset>
+
+      <fieldset class="group">
+        <legend>Watering schedule</legend>
+        <div class="seg">
+          <label><input type="radio" name="sp-sched" value="none" checked><span>None</span></label>
+          <label><input type="radio" name="sp-sched" value="interval"><span>Every N days</span></label>
+          <label><input type="radio" name="sp-sched" value="weekly"><span>Weekdays</span></label>
+        </div>
+
+        <div id="sp-sched-interval" hidden>
+          <div class="inline">
+            <span>Water every</span>
+            <input id="sp-days" type="number" min="1" max="365" step="1"
+                   inputmode="numeric" value="7">
+            <span>days</span>
+          </div>
+        </div>
+
+        <div id="sp-sched-weekly" hidden>
+          <div class="days" id="sp-days-of-week">
+            <label><input type="checkbox" value="1"><span>Mon</span></label>
+            <label><input type="checkbox" value="2"><span>Tue</span></label>
+            <label><input type="checkbox" value="3"><span>Wed</span></label>
+            <label><input type="checkbox" value="4"><span>Thu</span></label>
+            <label><input type="checkbox" value="5"><span>Fri</span></label>
+            <label><input type="checkbox" value="6"><span>Sat</span></label>
+            <label><input type="checkbox" value="0"><span>Sun</span></label>
+          </div>
+        </div>
+        <p class="hint">Each plant counts the days from when it was last watered, so
+          the species sets the interval and never the date.</p>
+      </fieldset>
+
+      <div class="row">
+        <button type="submit" class="btn primary">Save</button>
+        <button type="button" id="sp-cancel" class="btn">Cancel</button>
+      </div>
+      <div class="row">
+        <button type="button" id="sp-delete" class="btn danger" hidden>Delete species</button>
       </div>
     </form>
   </section>
@@ -242,7 +344,11 @@
   </a>
   <a class="tab" href="#/all" data-tab="/all">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5h2M9 6.5h11M4 12h2M9 12h11M4 17.5h2M9 17.5h11"/></svg>
-    <span>All plants</span>
+    <span>Plants</span>
+  </a>
+  <a class="tab" href="#/species" data-tab="/species">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5v-8m0 0c0-3 2-5.5 5-6.5 .5 3.5-1.5 6-5 6.5zm0 0C12 9.8 10 7.6 7 6.9c-.4 3 1.4 5.2 5 5.6z"/></svg>
+    <span>Species</span>
   </a>
   <a class="tab" href="#/new" data-tab="/new">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>

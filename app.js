@@ -10,6 +10,7 @@
    ========================================================================= */
 
 const K_PLANTS = 'plantdb.plants.v1';
+const K_SPECIES = 'plantdb.species.v1';
 const K_DIRTY  = 'plantdb.dirty.v1';
 
 const API = new URL('api/plants', document.baseURI).href;
@@ -18,6 +19,7 @@ const PHOTO_SIZE = 512;
 const PHOTO_QUALITY = 0.82;
 
 let plants = read(K_PLANTS, []);
+let species = read(K_SPECIES, []);
 let dirty  = read(K_DIRTY, false);   // local changes the server has not seen
 let lastSync = null;
 let lastError = '';
@@ -47,6 +49,7 @@ function write(key, value) {
 
 function persist() {
   write(K_PLANTS, plants);
+  write(K_SPECIES, species);
 }
 
 const uid = () =>
@@ -113,6 +116,86 @@ const humidityText = (plant) =>
   rangeText(humid(plant, 'min'), humid(plant, 'max'), PER_CENT);
 
 /* =========================================================================
+   Species and inheritance
+
+   A species record carries what is true of every plant of that kind — the
+   temperatures, the humidity, and how often it wants water — and nothing that
+   belongs to an individual: no watering notes, no notes, no photo, no diary
+   of when it was last watered.
+
+   A plant follows one through `speciesId`. Wherever the plant leaves a group
+   unset the species' figure applies; anything the plant fills in wins. Since
+   "unset" was already how these read, every plant that existed before species
+   did inherits nothing and behaves exactly as it did.
+
+   A `speciesId` naming a species this device has not synced yet, or one that
+   has since been deleted, resolves to nothing and the plant falls back to its
+   own figures. Across two phones that is a normal intermediate state rather
+   than damage, which is why nothing enforces the reference.
+   ========================================================================= */
+
+let speciesById = new Map();
+
+function indexSpecies() {
+  speciesById = new Map();
+  for (const record of species) {
+    if (!record.deletedAt) speciesById.set(record.id, record);
+  }
+}
+
+const liveSpecies = () => species.filter((s) => !s.deletedAt);
+
+/** The species a plant follows, or null. */
+const speciesOf = (plant) =>
+  (plant && plant.speciesId && speciesById.get(plant.speciesId)) || null;
+
+/** The species going by this name, or null. Matching ignores case and edges. */
+function speciesByName(name) {
+  const wanted = String(name || '').trim().toLowerCase();
+  if (!wanted) return null;
+  return liveSpecies().find((s) => String(s.name).trim().toLowerCase() === wanted) || null;
+}
+
+/**
+ * Which figures are in force for a plant, and where they came from: the
+ * plant's own if it has any, otherwise its species'. `from` is 'plant',
+ * 'species', or '' when neither has anything to say.
+ */
+function inherited(plant, key) {
+  if (plant[key]) return { value: plant[key], from: 'plant' };
+  const parent = speciesOf(plant);
+  if (parent && parent[key]) return { value: parent[key], from: 'species' };
+  return { value: null, from: '' };
+}
+
+/** The day a plant was added, as a date key; today if it never recorded one. */
+function addedKey(plant) {
+  const added = new Date(plant.createdAt);
+  return isNaN(added) ? todayKey() : keyOf(added);
+}
+
+/**
+ * The schedule a plant actually runs on.
+ *
+ * A species supplies the shape — every 7 days, or Mondays and Fridays — but
+ * never the anchor: when the clock started is a fact about your plant, not
+ * about the kind of plant it is. An inherited interval therefore counts from
+ * the last watering, falling back to the day the plant was added, so linking
+ * an old plant to a weekly species puts it straight on today's list rather
+ * than pretending it was watered just now.
+ */
+function effectiveSchedule(plant) {
+  const found = inherited(plant, 'schedule');
+  const shape = found.value;
+  if (!shape || found.from === 'plant' || shape.type !== 'interval') return shape;
+  return {
+    type: 'interval',
+    days: shape.days,
+    start: plant.lastWatered || addedKey(plant)
+  };
+}
+
+/* =========================================================================
    Calendar days
 
    Schedules are about *days*, not instants, so they use local "YYYY-MM-DD"
@@ -176,7 +259,7 @@ function fmtTime(date) {
    ========================================================================= */
 
 function scheduleText(plant) {
-  const s = plant.schedule;
+  const s = effectiveSchedule(plant);
   if (!s) return '';
 
   if (s.type === 'interval') {
@@ -197,7 +280,7 @@ function scheduleText(plant) {
 
 /** The next day this plant wants water, as a date key, or '' if unscheduled. */
 function nextDueKey(plant, today) {
-  const s = plant.schedule;
+  const s = effectiveSchedule(plant);
   if (!s) return '';
 
   if (s.type === 'interval') {
@@ -227,7 +310,7 @@ function nextDueKey(plant, today) {
  *   { due, late }  late is the number of whole days an interval is overdue.
  */
 function waterStatus(plant, today) {
-  const s = plant.schedule;
+  const s = effectiveSchedule(plant);
   if (!s) return { due: false, late: 0 };
   if (plant.lastWatered === today) return { due: false, late: 0, watered: true };
 
@@ -250,7 +333,7 @@ function waterStatus(plant, today) {
 
 /** One line of plain English about where a plant stands. */
 function statusText(plant, today) {
-  if (!plant.schedule) return '';
+  if (!effectiveSchedule(plant)) return '';
   const status = waterStatus(plant, today);
 
   if (status.late > 0) return status.late === 1 ? '1 day late' : status.late + ' days late';
@@ -317,6 +400,9 @@ const signature = (list) =>
       .sort()
       .join('|');
 
+/** A server too old to know about species simply does not mention them. */
+const remoteSpecies = (doc) => (Array.isArray(doc.species) ? doc.species : []);
+
 async function request(method, payload) {
   const options = { method: method, cache: 'no-store', headers: { Accept: 'application/json' } };
   if (payload) {
@@ -357,17 +443,21 @@ async function sync(quiet) {
   try {
     let doc;
     if (dirty) {
-      doc = await request('PUT', { plants: plants });
+      doc = await request('PUT', { plants: plants, species: species });
     } else {
       doc = await request('GET');
       // Nothing of ours is missing in the usual case; push only if it is.
-      const merged = merge(plants, doc.plants);
-      if (signature(merged) !== signature(doc.plants)) {
-        doc = await request('PUT', { plants: merged });
+      const mergedPlants = merge(plants, doc.plants);
+      const mergedSpecies = merge(species, remoteSpecies(doc));
+      if (signature(mergedPlants) !== signature(doc.plants) ||
+          signature(mergedSpecies) !== signature(remoteSpecies(doc))) {
+        doc = await request('PUT', { plants: mergedPlants, species: mergedSpecies });
       }
     }
 
     plants = doc.plants;
+    species = remoteSpecies(doc);
+    indexSpecies();
     persist();
     dirty = false;
     write(K_DIRTY, false);
@@ -386,6 +476,7 @@ async function sync(quiet) {
 
 /** Every change goes through here: save locally first, then try to sync. */
 function commit() {
+  indexSpecies();
   persist();
   dirty = true;
   write(K_DIRTY, true);
@@ -531,7 +622,7 @@ function markWatered(id) {
    Routing — #/ , #/all , #/new , #/p/<id> , #/p/<id>/edit , #/settings
    ========================================================================= */
 
-const VIEWS = ['list', 'all', 'detail', 'edit', 'settings'];
+const VIEWS = ['list', 'all', 'detail', 'edit', 'species', 'species-edit', 'settings'];
 
 function route() {
   return (location.hash || '#/').slice(1);
@@ -564,7 +655,7 @@ function replaceRoute(hash) {
 /** Re-render after a background change, without clobbering a half-typed form. */
 function refresh() {
   const path = route();
-  if (path === '/new' || /\/edit$/.test(path)) return;
+  if (path === '/new' || path === '/s/new' || /\/edit$/.test(path)) return;
   render();
 }
 
@@ -574,6 +665,11 @@ function render() {
   if (path === '/settings') return renderSettings();
   if (path === '/all') return renderAll();
   if (path === '/new') return renderForm(null);
+  if (path === '/species') return renderSpecies();
+  if (path === '/s/new') return renderSpeciesForm(null);
+
+  const speciesEdit = path.match(/^\/s\/([^/]+)\/edit$/);
+  if (speciesEdit) return renderSpeciesForm(speciesEdit[1]);
 
   const editMatch = path.match(/^\/p\/([^/]+)\/edit$/);
   if (editMatch) return renderForm(editMatch[1]);
@@ -690,10 +786,27 @@ function renderDetail(id) {
     photo.removeAttribute('src');
   }
 
-  fill($('#d-species'), p.species, 'Not set');
+  const parent = speciesOf(p);
+  const speciesLink = $('#d-species-from');
+  fill($('#d-species'), parent ? parent.name : p.species, 'Not set');
+  speciesLink.hidden = !parent;
+  if (parent) {
+    speciesLink.textContent = 'open';
+    speciesLink.href = '#/s/' + encodeURIComponent(parent.id) + '/edit';
+  }
+
   fill($('#d-place'), placeText(p), 'Not set');
-  fill($('#d-temp'), tempText(p), 'Not set');
-  fill($('#d-humidity'), humidityText(p), 'Not set');
+
+  // Figures may be the plant's own or its species'; say which, so that a
+  // number you did not type is never mistaken for one you did.
+  const temps = inherited(p, 'temps');
+  const humidity = inherited(p, 'humidity');
+  fill($('#d-temp'), temps.value ? tempText({ temps: temps.value }) : '', 'Not set');
+  fill($('#d-humidity'),
+       humidity.value ? humidityText({ humidity: humidity.value }) : '', 'Not set');
+  markInherited($('#d-temp-from'), temps.from);
+  markInherited($('#d-humidity-from'), humidity.from);
+  markInherited($('#d-sched-from'), inherited(p, 'schedule').from);
 
   const schedule = scheduleText(p);
   const status = statusText(p, today);
@@ -746,6 +859,12 @@ function renderDetail(id) {
   show('detail', p.name, true);
 }
 
+/** Flags a detail field whose value came from the species, not the plant. */
+function markInherited(node, from) {
+  node.hidden = from !== 'species';
+  node.textContent = from === 'species' ? 'inherited' : '';
+}
+
 function fill(node, text, placeholder) {
   node.textContent = text || placeholder;
   node.classList.toggle('blank', !text);
@@ -753,8 +872,6 @@ function fill(node, text, placeholder) {
 
 /* ---------- add / edit ---------- */
 
-const schedRadios = () => $$('input[name="sched"]');
-const dayBoxes = () => $$('#f-days-of-week input[type="checkbox"]');
 const placeRadios = () => $$('input[name="place"]');
 
 function loadPlace(plant) {
@@ -768,41 +885,59 @@ function readPlace() {
   return !checked || checked.value === 'none' ? '' : checked.value;
 }
 
-/* The two groups of optional figures. `fields` is listed lowest to highest,
-   which is the order the boxes have to read in. */
-const TEMPS = {
-  group: 'temps',
-  fields: {
-    absMin: '#f-abs-min',
-    avgMin: '#f-avg-min',
-    avgMax: '#f-avg-max',
-    absMax: '#f-abs-max'
-  },
-  floor: -60,
-  ceiling: 60,
-  error: '#f-temp-error',
-  message: 'Those read out of order — they should rise from the coldest it survives to the hottest.'
-};
+/* The two groups of optional figures, for whichever form is asking. `fields`
+   is listed lowest to highest, which is the order the boxes have to read in,
+   and `placeholders` lives here rather than in the markup so that a box can
+   show the figure it would inherit instead. */
+function figureGroups(prefix) {
+  const at = (name) => '#' + prefix + '-' + name;
+  return [
+    {
+      group: 'temps',
+      fields: { absMin: at('abs-min'), avgMin: at('avg-min'),
+                avgMax: at('avg-max'), absMax: at('abs-max') },
+      placeholders: { absMin: '5', avgMin: '18', avgMax: '27', absMax: '38' },
+      floor: -60,
+      ceiling: 60,
+      error: at('temp-error'),
+      message: 'Those read out of order — they should rise from the coldest it survives to the hottest.'
+    },
+    {
+      group: 'humidity',
+      fields: { min: at('hum-min'), max: at('hum-max') },
+      placeholders: { min: '40', max: '60' },
+      floor: 0,
+      ceiling: 100,
+      error: at('hum-error'),
+      message: 'The first figure cannot be higher than the second.'
+    }
+  ];
+}
 
-const HUMIDITY = {
-  group: 'humidity',
-  fields: { min: '#f-hum-min', max: '#f-hum-max' },
-  floor: 0,
-  ceiling: 100,
-  error: '#f-hum-error',
-  message: 'The first figure cannot be higher than the second.'
-};
+const GROUPS = figureGroups('f');            // the plant form
+const SPECIES_GROUPS = figureGroups('sp');   // the species form
 
-const GROUPS = [TEMPS, HUMIDITY];
-
-function loadFigures(spec, plant) {
+function loadFigures(spec, record, from) {
   for (const key of Object.keys(spec.fields)) {
     const box = $(spec.fields[key]);
-    const value = plant ? figure(plant, spec.group, key) : null;
+    const value = record ? figure(record, spec.group, key) : null;
     box.value = value === null ? '' : value;
     box.classList.remove('invalid');
   }
+  showInherited(spec, from);
   $(spec.error).hidden = true;
+}
+
+/**
+ * Put whatever the plant would inherit into the empty boxes as their
+ * placeholder, so that "left blank" visibly means "18 from the species"
+ * rather than looking like nothing at all.
+ */
+function showInherited(spec, from) {
+  for (const key of Object.keys(spec.fields)) {
+    const value = from ? figure(from, spec.group, key) : null;
+    $(spec.fields[key]).placeholder = value === null ? spec.placeholders[key] : String(value);
+  }
 }
 
 /** Reads one group's boxes. Returns null when none of them were filled in. */
@@ -845,50 +980,109 @@ function markFigureProblem(spec, values) {
   return wrong;
 }
 
-function selectedSchedType() {
-  const checked = schedRadios().filter((r) => r.checked)[0];
+/* The schedule controls, for whichever form is asking. A species schedule is
+   a shape only — `anchored` is what says whether a start date belongs on it. */
+function scheduleControls(prefix, anchored) {
+  const at = (name) => '#' + prefix + '-' + name;
+  return {
+    radios: 'input[name="' + (prefix === 'f' ? 'sched' : prefix + '-sched') + '"]',
+    days: at('days'),
+    weekBoxes: at('days-of-week') + ' input[type="checkbox"]',
+    intervalPanel: prefix === 'f' ? '#sched-interval' : at('sched-interval'),
+    weeklyPanel: prefix === 'f' ? '#sched-weekly' : at('sched-weekly'),
+    anchored: anchored
+  };
+}
+
+const PLANT_SCHED = scheduleControls('f', true);
+const SPECIES_SCHED = scheduleControls('sp', false);
+
+const schedRadios = (sched) => $$(sched.radios);
+const dayBoxes = (sched) => $$(sched.weekBoxes);
+
+function selectedSchedType(sched) {
+  const checked = schedRadios(sched).filter((r) => r.checked)[0];
   return checked ? checked.value : 'none';
 }
 
-function showSchedPanels() {
-  const type = selectedSchedType();
-  $('#sched-interval').hidden = type !== 'interval';
-  $('#sched-weekly').hidden = type !== 'weekly';
+function showSchedPanels(sched) {
+  const type = selectedSchedType(sched);
+  $(sched.intervalPanel).hidden = type !== 'interval';
+  $(sched.weeklyPanel).hidden = type !== 'weekly';
 }
 
-function loadSchedule(plant) {
-  const s = (plant && plant.schedule) || null;
+function loadSchedule(sched, record) {
+  const s = (record && record.schedule) || null;
   const type = s ? s.type : 'none';
 
-  for (const radio of schedRadios()) radio.checked = radio.value === type;
-  $('#f-days').value = (s && s.type === 'interval' && s.days) || 7;
+  for (const radio of schedRadios(sched)) radio.checked = radio.value === type;
+  $(sched.days).value = (s && s.type === 'interval' && s.days) || 7;
 
   const selected = (s && s.type === 'weekly' && s.weekdays) || [];
-  for (const box of dayBoxes()) box.checked = selected.indexOf(Number(box.value)) !== -1;
+  for (const box of dayBoxes(sched)) box.checked = selected.indexOf(Number(box.value)) !== -1;
 
-  showSchedPanels();
+  showSchedPanels(sched);
 }
 
 /** Reads the schedule controls. Returns null for "no schedule". */
-function readSchedule(previous) {
-  const type = selectedSchedType();
+function readSchedule(sched, previous) {
+  const type = selectedSchedType(sched);
 
   if (type === 'interval') {
-    let days = parseInt($('#f-days').value, 10);
+    let days = parseInt($(sched.days).value, 10);
     if (!isFinite(days) || days < 1) days = 1;
     if (days > 365) days = 365;
+    if (!sched.anchored) return { type: 'interval', days: days };
     // Keep the original anchor when only the interval length changed.
     const start = (previous && previous.type === 'interval' && previous.start) || todayKey();
     return { type: 'interval', days: days, start: start };
   }
 
   if (type === 'weekly') {
-    const weekdays = dayBoxes().filter((b) => b.checked).map((b) => Number(b.value));
+    const weekdays = dayBoxes(sched).filter((b) => b.checked).map((b) => Number(b.value));
     if (!weekdays.length) return null;      // no days ticked means no schedule
     return { type: 'weekly', weekdays: weekdays.sort((a, b) => a - b) };
   }
 
   return null;
+}
+
+/**
+ * Reflect whatever species the box currently names: what it is linked to, and
+ * what the empty boxes below would inherit if left alone.
+ */
+function applySpeciesToForm() {
+  const typed = $('#f-species').value.trim();
+  const parent = speciesByName(typed);
+  const hint = $('#f-species-hint');
+
+  if (!typed) {
+    hint.textContent = 'Optional. Naming a species shares its temperature, ' +
+                       'humidity and watering schedule with every plant of that kind.';
+  } else if (parent) {
+    hint.textContent = 'Linked to ' + parent.name +
+                       '. Anything left empty below follows it.';
+  } else {
+    hint.textContent = 'No species called that yet — add one under Species to ' +
+                       'share figures between plants of this kind.';
+  }
+
+  for (const spec of GROUPS) showInherited(spec, parent);
+  showSchedHint(parent);
+  return parent;
+}
+
+/** Says what an unset schedule will fall back to, when there is one. */
+function showSchedHint(parent) {
+  const hint = $('#f-sched-hint');
+  const shape = parent && parent.schedule;
+  const ownSchedule = selectedSchedType(PLANT_SCHED) !== 'none';
+
+  hint.hidden = !shape || ownSchedule;
+  if (!hint.hidden) {
+    hint.textContent = 'Left as None, this plant follows ' + parent.name + ': ' +
+                       scheduleText({ schedule: shape }).toLowerCase() + '.';
+  }
 }
 
 function renderForm(id) {
@@ -901,13 +1095,14 @@ function renderForm(id) {
   const form = $('#form');
   form.reset();
   $('#f-name').value = p ? p.name : '';
-  $('#f-species').value = p ? p.species || '' : '';
   $('#f-water').value = p ? p.water || '' : '';
   $('#f-notes').value = p ? p.notes || '' : '';
   $('#f-name').classList.remove('invalid');
+  $('#f-species').value = p ? p.species || '' : '';
   loadPlace(p);
   for (const spec of GROUPS) loadFigures(spec, p);
-  loadSchedule(p);
+  loadSchedule(PLANT_SCHED, p);
+  applySpeciesToForm();
 
   form.onsubmit = (e) => {
     e.preventDefault();
@@ -933,21 +1128,23 @@ function renderForm(id) {
     }
 
     const now = new Date().toISOString();
-    const species = $('#f-species').value.trim();
+    const speciesName = $('#f-species').value.trim();
+    const parent = speciesByName(speciesName);
+    const speciesId = parent ? parent.id : '';
     const temps = figures.temps;
     const humidity = figures.humidity;
     const water = $('#f-water').value.trim();
     const notes = $('#f-notes').value.trim();
     const place = readPlace();
-    const schedule = readSchedule(p && p.schedule);
+    const schedule = readSchedule(PLANT_SCHED, p && p.schedule);
 
     let saved = p;
     if (p) {
-      Object.assign(p, { name, species, place, temps, humidity, water, notes,
-                         schedule, updatedAt: now });
+      Object.assign(p, { name, species: speciesName, speciesId, place, temps,
+                         humidity, water, notes, schedule, updatedAt: now });
     } else {
-      saved = { id: uid(), name, species, place, temps, humidity, water, notes,
-                schedule, createdAt: now, updatedAt: now };
+      saved = { id: uid(), name, species: speciesName, speciesId, place, temps,
+                humidity, water, notes, schedule, createdAt: now, updatedAt: now };
       plants.push(saved);
     }
 
@@ -969,6 +1166,143 @@ function renderForm(id) {
   if (!p) setTimeout(() => $('#f-name').focus(), 50);
 }
 
+/* ---------- species ---------- */
+
+/** The one-line summary of what a species says, for its row in the list. */
+const speciesSummary = (record) =>
+  [tempText(record), humidityText(record), scheduleText(record)].filter(Boolean).join(' · ');
+
+const followerCount = (record) => live().filter((p) => p.speciesId === record.id).length;
+
+function renderSpecies() {
+  const items = liveSpecies().slice().sort(byName);
+
+  const ul = $('#species-list');
+  ul.textContent = '';
+
+  for (const record of items) {
+    const li = document.createElement('li');
+    const a = document.createElement('a');
+    a.href = '#/s/' + encodeURIComponent(record.id) + '/edit';
+
+    const text = document.createElement('div');
+    text.className = 'text';
+
+    const name = document.createElement('div');
+    name.className = 'name';
+    name.textContent = record.name;
+    text.appendChild(name);
+
+    const used = followerCount(record);
+    const sub = document.createElement('div');
+    sub.className = 'sub';
+    sub.textContent = [speciesSummary(record),
+                       used === 1 ? '1 plant' : used + ' plants'].filter(Boolean).join(' · ');
+    text.appendChild(sub);
+
+    a.appendChild(text);
+    li.appendChild(a);
+    ul.appendChild(li);
+  }
+
+  $('#no-species').hidden = items.length > 0;
+  show('species', items.length ? `Species (${items.length})` : 'Species', false);
+}
+
+function renderSpeciesForm(id) {
+  const record = id ? species.find((x) => x.id === id && !x.deletedAt) : null;
+  if (id && !record) {
+    location.replace('#/species');   // no history entry for a species that is gone
+    return;
+  }
+
+  const form = $('#sp-form');
+  form.reset();
+  $('#sp-name').value = record ? record.name : '';
+  $('#sp-name').classList.remove('invalid');
+  for (const spec of SPECIES_GROUPS) loadFigures(spec, record, null);
+  loadSchedule(SPECIES_SCHED, record);
+
+  const remove = $('#sp-delete');
+  remove.hidden = !record;
+  remove.onclick = () => {
+    const used = followerCount(record);
+    const consequence = used === 0 ? ''
+      : (used === 1 ? ' One plant follows it' : ' ' + used + ' plants follow it') +
+        ' and would fall back to its own figures.';
+    if (!confirm('Delete the species “' + record.name + '”?' + consequence)) return;
+    record.deletedAt = new Date().toISOString();
+    record.updatedAt = record.deletedAt;
+    commit();
+    replaceRoute('#/species');
+  };
+
+  form.onsubmit = (e) => {
+    e.preventDefault();
+    const name = $('#sp-name').value.trim();
+    if (!name) {
+      $('#sp-name').classList.add('invalid');
+      $('#sp-name').focus();
+      return;
+    }
+
+    // Plants find their species by name, so two species cannot share one.
+    const clash = speciesByName(name);
+    if (clash && (!record || clash.id !== record.id)) {
+      $('#sp-name').classList.add('invalid');
+      $('#sp-name').focus();
+      setStatus('There is already a species called ' + clash.name + '.', true, true);
+      return;
+    }
+
+    const figures = {};
+    let firstProblem = '';
+    for (const spec of SPECIES_GROUPS) {
+      figures[spec.group] = readFigures(spec);
+      const wrong = markFigureProblem(spec, figures[spec.group]);
+      if (wrong && !firstProblem) firstProblem = spec.fields[wrong];
+    }
+    if (firstProblem) {
+      $(firstProblem).focus();
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const schedule = readSchedule(SPECIES_SCHED, null);
+    const wasCalled = record ? record.name : '';
+
+    let saved = record;
+    if (record) {
+      Object.assign(record, { name, temps: figures.temps, humidity: figures.humidity,
+                              schedule, updatedAt: now });
+    } else {
+      saved = { id: uid(), name, temps: figures.temps, humidity: figures.humidity,
+                schedule, createdAt: now, updatedAt: now };
+      species.push(saved);
+    }
+
+    // A plant links by id but remembers the name it was typed with. Renaming a
+    // species has to carry its plants along, or the next edit of one of them
+    // would find nothing by that name and quietly unlink it.
+    if (wasCalled && wasCalled !== name) {
+      for (const plant of live()) {
+        if (plant.speciesId === saved.id && plant.species !== name) {
+          plant.species = name;
+          plant.updatedAt = now;
+        }
+      }
+    }
+
+    commit();
+    replaceRoute('#/species');
+  };
+
+  $('#sp-cancel').onclick = () => history.back();
+
+  show('species-edit', record ? 'Edit species' : 'New species', true);
+  if (!record) setTimeout(() => $('#sp-name').focus(), 50);
+}
+
 /* ---------- settings ---------- */
 
 function renderSettings() {
@@ -985,8 +1319,10 @@ function renderSettings() {
   }
 
   $('#s-server').textContent = server;
+  const kinds = liveSpecies().length;
   $('#s-count').textContent =
-    `${count} plant${count === 1 ? '' : 's'} cached on this device` +
+    `${count} plant${count === 1 ? '' : 's'} and ${kinds} ` +
+    `species cached on this device` +
     (dirty ? ', with changes waiting to sync.' : '.');
 
   show('settings', 'Settings', true);
@@ -1010,12 +1346,22 @@ window.addEventListener('hashchange', (e) => {
 
 $('#back').onclick = () => history.back();
 
-for (const radio of schedRadios()) radio.onchange = showSchedPanels;
+for (const radio of schedRadios(PLANT_SCHED)) {
+  radio.onchange = () => {
+    showSchedPanels(PLANT_SCHED);
+    showSchedHint(speciesByName($('#f-species').value));
+  };
+}
+for (const radio of schedRadios(SPECIES_SCHED)) {
+  radio.onchange = () => showSchedPanels(SPECIES_SCHED);
+}
+
+$('#f-species').oninput = applySpeciesToForm;
 
 $('#s-sync').onclick = () => sync();
 
 $('#s-export').onclick = () => {
-  const blob = new Blob([JSON.stringify({ version: 1, plants }, null, 2)],
+  const blob = new Blob([JSON.stringify({ version: 2, species, plants }, null, 2)],
                         { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -1034,6 +1380,8 @@ $('#s-file').onchange = async (e) => {
     const incoming = Array.isArray(parsed) ? parsed : parsed.plants;
     if (!Array.isArray(incoming)) throw new Error('no plant list in that file');
     plants = merge(plants, incoming);
+    // A backup taken before species existed simply has none to bring back.
+    if (parsed && Array.isArray(parsed.species)) species = merge(species, parsed.species);
     commit();
     renderSettings();
     setStatus(`Imported. ${live().length} plants now.`, false);
@@ -1091,5 +1439,6 @@ document.addEventListener('visibilitychange', () => {
 });
 window.addEventListener('online', () => sync(true));
 
+indexSpecies();
 render();
 sync(true);

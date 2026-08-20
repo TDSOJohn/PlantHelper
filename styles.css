@@ -277,6 +277,19 @@ main { max-width: 720px; margin: 0 auto; }
 .value.blank { color: var(--ink-dim); font-style: italic; }
 .value.late { color: var(--danger); font-weight: 600; }
 
+/* "inherited" / "open" beside a field label: the label is uppercase and
+   letter-spaced, so everything about that has to be undone here. */
+.label .from {
+  margin-left: 6px;
+  color: var(--ink-dim);
+  font-size: 11px;
+  font-weight: 400;
+  font-style: italic;
+  text-transform: none;
+  letter-spacing: 0;
+}
+a.from { color: var(--accent); font-style: normal; text-decoration: underline; }
+
 .meta { margin: 0 0 20px; color: var(--ink-dim); font-size: 14px; }
 
 /* ---------- forms ---------- */

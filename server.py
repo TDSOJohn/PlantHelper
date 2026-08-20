@@ -4,15 +4,18 @@ Plants — a small LAN-only server for the plant database.
 
 Serves the static page, one JSON endpoint and the plant photos:
 
-    GET    /api/plants        ->  {"version": 1, "updatedAt": "...", "plants": [...]}
-    PUT    /api/plants        <-  {"plants": [...]}
+    GET    /api/plants        ->  {"version": 2, "updatedAt": "...",
+                                   "species": [...], "plants": [...]}
+    PUT    /api/plants        <-  {"species": [...], "plants": [...]}
     PUT    /api/photo/<id>    <-  raw JPEG bytes (the browser resizes to 512x512)
     DELETE /api/photo/<id>
     GET    /photos/<id>.jpg
 
 A PUT to /api/plants is *merged* with what is already on disk rather than
 replacing it, so two phones that were both edited offline can sync in any order
-without losing an edit. Writes are atomic and a snapshot is kept once a day,
+without losing an edit. Species and plants are two lists of the same shape and
+are merged the same way; either may be omitted by an older client, in which
+case what is on disk is kept. Writes are atomic and a snapshot is kept once a day,
 because SD cards and power cuts do not mix.
 
 Standard library only — nothing to install on the Pi beyond Python itself.
@@ -53,21 +56,24 @@ def now_iso():
 
 
 def merge(current, incoming):
-    """Union by id; the most recently updated copy of each plant wins.
+    """Union by id; the most recently updated copy of each record wins.
 
-    Ties go to `incoming`, and deletes are tombstones (a plant with a
+    Ties go to `incoming`, and deletes are tombstones (a record with a
     `deletedAt`), so a stale device cannot resurrect something you deleted.
+
+    Nothing here is specific to plants: species records carry the same id,
+    updatedAt and deletedAt fields, and are merged by the same call.
     """
     out = {}
-    for plant in list(current) + list(incoming):
-        if not isinstance(plant, dict):
+    for record in list(current) + list(incoming):
+        if not isinstance(record, dict):
             continue
-        pid = plant.get("id")
-        if not isinstance(pid, str) or not pid:
+        rid = record.get("id")
+        if not isinstance(rid, str) or not rid:
             continue
-        seen = out.get(pid)
-        if seen is None or str(plant.get("updatedAt") or "") >= str(seen.get("updatedAt") or ""):
-            out[pid] = plant
+        seen = out.get(rid)
+        if seen is None or str(record.get("updatedAt") or "") >= str(seen.get("updatedAt") or ""):
+            out[rid] = record
     return list(out.values())
 
 
@@ -88,19 +94,22 @@ class Store:
             with open(self.path, "r", encoding="utf-8") as handle:
                 doc = json.load(handle)
         except FileNotFoundError:
-            return {"version": 1, "updatedAt": None, "plants": []}
+            return {"version": 2, "updatedAt": None, "species": [], "plants": []}
 
         if isinstance(doc, list):          # tolerate a bare array
             doc = {"plants": doc}
         plants = doc.get("plants")
+        species = doc.get("species")       # absent in a file written before v2
         return {
-            "version": 1,
+            "version": 2,
             "updatedAt": doc.get("updatedAt"),
+            "species": species if isinstance(species, list) else [],
             "plants": plants if isinstance(plants, list) else [],
         }
 
-    def save(self, plants):
-        doc = {"version": 1, "updatedAt": now_iso(), "plants": plants}
+    def save(self, plants, species):
+        doc = {"version": 2, "updatedAt": now_iso(),
+               "species": species, "plants": plants}
         text = json.dumps(doc, indent=2, ensure_ascii=False) + "\n"
         self._snapshot()
         self._atomic_write(self.path, text.encode("utf-8"))
@@ -271,11 +280,20 @@ class Handler(SimpleHTTPRequestHandler):
         if not isinstance(incoming, list):
             return self._fail(400, "Expected a JSON object with a 'plants' array")
 
+        # A client that predates species simply does not mention them, which
+        # has to leave the ones on disk alone rather than wipe them.
+        incoming_species = payload.get("species") if isinstance(payload, dict) else None
+        if incoming_species is None:
+            incoming_species = []
+        if not isinstance(incoming_species, list):
+            return self._fail(400, "'species' must be an array if it is given")
+
         with _lock:
             try:
                 current = self.store.load()
                 merged = merge(current["plants"], incoming)
-                doc = self.store.save(merged)
+                merged_species = merge(current["species"], incoming_species)
+                doc = self.store.save(merged, merged_species)
             except Exception as exc:
                 return self._fail(500, "Cannot write the data file: %s" % exc)
             # Only once the list is safely on disk, and still under the lock so

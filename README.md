@@ -2,9 +2,11 @@
 
 A personal database of the plants I own, served from a Raspberry Pi on the home
 network. A tab bar moves between **Today** (what needs water), **All plants**,
-**Add** and **Settings**. Each plant has a name and a species, notes, a watering
-schedule, a photo, the temperatures it likes, and a note of whether it lives
-inside or outside.
+**Add**, **Species** and **Settings**. Each plant has a name and a species,
+notes, a watering schedule, a photo, the temperatures it likes, and a note of
+whether it lives inside or outside. Figures that are true of a whole kind of
+plant can live on a **species** record instead, and be shared by every plant of
+that kind.
 
 No frameworks and no dependencies: a static page plus a ~250-line Python
 standard-library server. Nothing to install on the Pi beyond what Raspberry Pi
@@ -34,6 +36,71 @@ Nothing validates the species against a list of real plants. An earlier attempt
 at that — the World Flora Online backbone baked in as a lookup — was dropped:
 90-odd thousand names is a lot of file to carry for autocomplete alone, when
 the taxonomy carries no care information to go with it.
+
+Typing a name that matches a **species record** links the plant to it, which is
+what the next section is about.
+
+## Species
+
+A species record holds what is true of every plant of that kind — the
+temperatures, the humidity, and how often it wants water — and nothing that
+belongs to an individual. No watering notes, no notes, no photo, and no record
+of when anything was last watered.
+
+A plant follows one by having exactly that name in its own species box; the
+match ignores case and surrounding spaces. There is no picker to keep in sync
+and no migration: a plant whose species is just typed text stays exactly as it
+was until a record by that name exists.
+
+### What is inherited, and what wins
+
+Anywhere a plant leaves a group **empty**, its species' figure applies. Anything
+the plant fills in wins, field group by field group — so a species can set the
+temperature while one particular plant on a cold windowsill sets its own. On the
+form, an empty box shows the figure it would inherit as its placeholder; on the
+plant's page, a value that came from the species is labelled *inherited*, so a
+number you did not type is never mistaken for one you did.
+
+This works because *unset* was already how those fields read. Every plant that
+existed before species did inherits nothing and behaves exactly as it always
+has, and there is nothing to migrate.
+
+### Schedules are the exception worth reading
+
+A species supplies the **shape** of a watering schedule — every 7 days, or
+Mondays and Fridays — but never the anchor. When the clock started is a fact
+about your plant, not about the kind of plant it is, so an inherited interval
+counts from that plant's last watering, falling back to the day it was added.
+
+The practical consequence: linking a plant you added months ago to an
+*every 7 days* species puts it on today's list immediately, rather than
+pretending it was watered just now. One tap of ✓ settles it for good.
+
+### Renaming and deleting
+
+Plants link by id but remember the name they were typed with, so **renaming** a
+species rewrites that text on every plant following it — otherwise the next edit
+of one of those plants would find no species by that name and quietly unlink it.
+Two species cannot share a name, for the same reason.
+
+**Deleting** a species asks first, and says how many plants follow it. Those
+plants keep every figure they had set themselves and lose only the ones they
+were borrowing. The species itself becomes a tombstone, exactly like a deleted
+plant.
+
+### Why this is not a database
+
+The obvious question is whether two related entities should mean SQLite —
+which is in the Python standard library, so it would cost no new dependency.
+It was left alone deliberately. The browser has to hold the whole dataset
+anyway to keep working while the Pi reboots, so the wire format stays JSON
+regardless and SQLite would only change what sits behind the API. At this size
+there is no query to speed up, and the sync would get harder rather than
+easier: two tables to merge instead of one list, and foreign keys that would
+actively fight the design. A phone can quite legitimately create a plant
+referencing a species another phone has not seen yet. That dangling reference
+is a normal intermediate state, and the app treats it as one — the plant simply
+falls back to its own figures until the species arrives.
 
 ## Watering schedules
 
@@ -148,14 +215,17 @@ worse than leaving 50 kB on a memory card.
 The Pi serves both the page and its data, so everything is same-origin: no
 tokens, no CORS, no cloud account.
 
-    GET    /api/plants      ->  {"version": 1, "updatedAt": "...", "plants": [...]}
-    PUT    /api/plants      <-  {"plants": [...]}
+    GET    /api/plants      ->  {"version": 2, "updatedAt": "...",
+                                 "species": [...], "plants": [...]}
+    PUT    /api/plants      <-  {"species": [...], "plants": [...]}
     PUT    /api/photo/<id>  <-  raw JPEG bytes
     DELETE /api/photo/<id>
     GET    /photos/<id>.jpg
 
 A `PUT` is **merged** with what is already on disk rather than replacing it —
-union by plant id, most recently updated copy wins, deletes are tombstones. So
+union by id, most recently updated copy wins, deletes are tombstones. Species
+and plants are two lists of the same shape and go through the same merge; a
+client that sends no `species` key at all leaves the ones on disk alone. So
 two phones edited while apart both keep their changes, in whatever order they
 sync, and there is no revision number for the client to juggle.
 
@@ -273,8 +343,9 @@ Three layers, in increasing order of effort:
 
 - The server keeps a dated snapshot in `/var/lib/plants/backups/` on the first
   write of each day, pruned to the last 30.
-- Settings → **Export JSON** saves the whole list; **Import JSON** merges one
-  back in. Photos are not included — they are files, not JSON.
+- Settings → **Export JSON** saves the plants and the species together;
+  **Import JSON** merges both back in, and tolerates a backup taken before
+  species existed. Photos are not included — they are files, not JSON.
 - Copy the whole data directory off the Pi periodically, photos and all:
   `rsync -a plants.local:/var/lib/plants/ ~/backups/plants/`
 
@@ -286,17 +357,29 @@ usual on an SD card. Prefer `sudo shutdown -h now` over pulling the plug.
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "updatedAt": "2026-08-19T10:00:00Z",
+  "species": [
+    {
+      "id": "sp-7f3a21",
+      "name": "Monstera deliciosa",
+      "temps": { "absMin": 5, "avgMin": 18, "avgMax": 27, "absMax": 38 },
+      "humidity": { "min": 40, "max": 60 },
+      "schedule": { "type": "interval", "days": 7 },
+      "createdAt": "2026-08-19T09:00:00Z",
+      "updatedAt": "2026-08-19T09:00:00Z"
+    }
+  ],
   "plants": [
     {
       "id": "m1a2b3-x9y8z7",
       "name": "The big one in the kitchen",
       "species": "Monstera deliciosa",
+      "speciesId": "sp-7f3a21",
       "place": "inside",
-      "temps": { "absMin": 5, "avgMin": 18, "avgMax": 27, "absMax": 38 },
-      "humidity": { "min": 40, "max": 60 },
-      "schedule": { "type": "interval", "days": 7, "start": "2026-08-19" },
+      "temps": null,
+      "humidity": { "min": 55, "max": 75 },
+      "schedule": null,
       "lastWatered": "2026-08-19",
       "photo": "2026-08-19T10:04:00.000Z",
       "water": "Less in winter",
@@ -320,6 +403,13 @@ usual on an SD card. Prefer `sudo shutdown -h now` over pulling the plug.
   ]
 }
 ```
+
+A plant with `speciesId` set follows that species wherever its own value is
+`null` or absent — the Monstera above takes its temperatures and its watering
+interval from the record, and overrides only the humidity. `species` is the
+text that was typed; it is kept in step when a species is renamed, and stands
+alone for a plant not linked to any record. A `speciesId` naming a species this
+device has not synced yet resolves to nothing rather than being an error.
 
 `schedule` is `null` or absent when a plant has none, `weekdays` runs 0 = Sunday
 to 6 = Saturday, and `lastWatered` is a local date. `photo` is absent when there
