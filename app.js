@@ -62,48 +62,55 @@ const PLACE = { inside: 'Inside', outside: 'Outside' };
 const placeText = (plant) => PLACE[plant.place] || '';
 
 /* =========================================================================
-   Temperatures
+   Temperature and humidity
 
    plant.temps is { absMin, avgMin, avgMax, absMax }, in whole °C: the range
-   the plant is happy in, and the range it merely survives. Every one of them
-   is optional — a key is present only once it has been filled in, and `temps`
-   itself is null or absent until at least one has been. That is what every
-   plant added before this existed looks like, so there is nothing to migrate.
+   the plant is happy in, and the wider one it merely survives. plant.humidity
+   is { min, max }, in whole per cent.
+
+   Every figure is optional. A key is present only once it has been filled in,
+   and the group itself is null or absent until at least one of its figures
+   has been — which is what every plant added before these existed looks like,
+   so there is nothing to migrate.
    ========================================================================= */
 
-const TEMP_MIN = -60;
-const TEMP_MAX = 60;
+const DEGREES = ' °C';
+const PER_CENT = '%';
 
-/** Coldest to warmest. The form and the ordering check both rely on this. */
-const TEMP_KEYS = ['absMin', 'avgMin', 'avgMax', 'absMax'];
-
-const degrees = (text) => text + ' °C';
-
-/** One stored temperature, or null where it was never filled in. */
-function temp(plant, key) {
-  const value = plant.temps ? Number(plant.temps[key]) : NaN;
+/** One stored figure, or null where it was never filled in. */
+function figure(plant, group, key) {
+  const bag = plant[group];
+  const value = bag ? Number(bag[key]) : NaN;
   return isFinite(value) ? value : null;
+}
+
+const temp = (plant, key) => figure(plant, 'temps', key);
+const humid = (plant, key) => figure(plant, 'humidity', key);
+
+/** "18–27 °C", or a single bound where only one end was given. */
+function rangeText(low, high, unit) {
+  if (low !== null && high !== null) return low + '–' + high + unit;
+  if (low !== null) return 'Above ' + low + unit;
+  if (high !== null) return 'Below ' + high + unit;
+  return '';
 }
 
 /** "18–27 °C · Survives 5 to 38 °C", with either half alone if that is all there is. */
 function tempText(plant) {
-  const avgMin = temp(plant, 'avgMin');
-  const avgMax = temp(plant, 'avgMax');
+  const happy = rangeText(temp(plant, 'avgMin'), temp(plant, 'avgMax'), DEGREES);
   const absMin = temp(plant, 'absMin');
   const absMax = temp(plant, 'absMax');
 
-  let happy = '';
-  if (avgMin !== null && avgMax !== null) happy = degrees(avgMin + '–' + avgMax);
-  else if (avgMin !== null) happy = 'Happy above ' + degrees(avgMin);
-  else if (avgMax !== null) happy = 'Happy below ' + degrees(avgMax);
-
   let limits = '';
-  if (absMin !== null && absMax !== null) limits = 'Survives ' + degrees(absMin + ' to ' + absMax);
-  else if (absMin !== null) limits = 'Survives down to ' + degrees(absMin);
-  else if (absMax !== null) limits = 'Survives up to ' + degrees(absMax);
+  if (absMin !== null && absMax !== null) limits = 'Survives ' + absMin + ' to ' + absMax + DEGREES;
+  else if (absMin !== null) limits = 'Survives down to ' + absMin + DEGREES;
+  else if (absMax !== null) limits = 'Survives up to ' + absMax + DEGREES;
 
   return [happy, limits].filter(Boolean).join(' · ');
 }
+
+const humidityText = (plant) =>
+  rangeText(humid(plant, 'min'), humid(plant, 'max'), PER_CENT);
 
 /* =========================================================================
    Calendar days
@@ -685,6 +692,7 @@ function renderDetail(id) {
 
   fill($('#d-place'), placeText(p), 'Not set');
   fill($('#d-temp'), tempText(p), 'Not set');
+  fill($('#d-humidity'), humidityText(p), 'Not set');
 
   const schedule = scheduleText(p);
   const status = statusText(p, today);
@@ -759,53 +767,81 @@ function readPlace() {
   return !checked || checked.value === 'none' ? '' : checked.value;
 }
 
-const TEMP_BOXES = {
-  absMin: '#f-abs-min',
-  avgMin: '#f-avg-min',
-  avgMax: '#f-avg-max',
-  absMax: '#f-abs-max'
+/* The two groups of optional figures. `fields` is listed lowest to highest,
+   which is the order the boxes have to read in. */
+const TEMPS = {
+  group: 'temps',
+  fields: {
+    absMin: '#f-abs-min',
+    avgMin: '#f-avg-min',
+    avgMax: '#f-avg-max',
+    absMax: '#f-abs-max'
+  },
+  floor: -60,
+  ceiling: 60,
+  error: '#f-temp-error',
+  message: 'Those read out of order — they should rise from the coldest it survives to the hottest.'
 };
 
-const TEMP_ORDER_MESSAGE =
-  'Those read out of order — they should rise from the coldest it survives to the hottest.';
+const HUMIDITY = {
+  group: 'humidity',
+  fields: { min: '#f-hum-min', max: '#f-hum-max' },
+  floor: 0,
+  ceiling: 100,
+  error: '#f-hum-error',
+  message: 'The first figure cannot be higher than the second.'
+};
 
-function loadTemps(plant) {
-  for (const key of TEMP_KEYS) {
-    const box = $(TEMP_BOXES[key]);
-    const value = plant ? temp(plant, key) : null;
+const GROUPS = [TEMPS, HUMIDITY];
+
+function loadFigures(spec, plant) {
+  for (const key of Object.keys(spec.fields)) {
+    const box = $(spec.fields[key]);
+    const value = plant ? figure(plant, spec.group, key) : null;
     box.value = value === null ? '' : value;
     box.classList.remove('invalid');
   }
-  $('#f-temp-error').hidden = true;
+  $(spec.error).hidden = true;
 }
 
-/** Reads the four boxes. Returns null when none of them were filled in. */
-function readTemps() {
+/** Reads one group's boxes. Returns null when none of them were filled in. */
+function readFigures(spec) {
   const out = {};
   let any = false;
-  for (const key of TEMP_KEYS) {
-    const raw = $(TEMP_BOXES[key]).value.trim();
+  for (const key of Object.keys(spec.fields)) {
+    const raw = $(spec.fields[key]).value.trim();
     if (!raw) continue;
     const value = Math.round(Number(raw));
     if (!isFinite(value)) continue;      // a browser that let something odd through
-    out[key] = Math.min(TEMP_MAX, Math.max(TEMP_MIN, value));
+    out[key] = Math.min(spec.ceiling, Math.max(spec.floor, value));
     any = true;
   }
   return any ? out : null;
 }
 
 /**
- * The first box holding a temperature lower than the one before it, or '' if
- * they all read low to high. Blanks are skipped, so filling in only the two
- * comfortable figures is checked against each other and nothing else.
+ * The first box holding a figure lower than the one before it, or '' if they
+ * all read low to high. Blanks are skipped, so filling in only the two
+ * comfortable temperatures checks them against each other and nothing else.
  */
-function firstOutOfOrder(temps) {
-  if (!temps) return '';
-  const filled = TEMP_KEYS.filter((key) => key in temps);
+function firstOutOfOrder(spec, values) {
+  if (!values) return '';
+  const filled = Object.keys(spec.fields).filter((key) => key in values);
   for (let i = 1; i < filled.length; i++) {
-    if (temps[filled[i]] < temps[filled[i - 1]]) return filled[i];
+    if (values[filled[i]] < values[filled[i - 1]]) return filled[i];
   }
   return '';
+}
+
+/** Shows or clears one group's complaint; returns the offending key, or ''. */
+function markFigureProblem(spec, values) {
+  const wrong = firstOutOfOrder(spec, values);
+  for (const key of Object.keys(spec.fields)) {
+    $(spec.fields[key]).classList.toggle('invalid', key === wrong);
+  }
+  $(spec.error).textContent = wrong ? spec.message : '';
+  $(spec.error).hidden = !wrong;
+  return wrong;
 }
 
 function selectedSchedType() {
@@ -868,7 +904,7 @@ function renderForm(id) {
   $('#f-notes').value = p ? p.notes || '' : '';
   $('#f-name').classList.remove('invalid');
   loadPlace(p);
-  loadTemps(p);
+  for (const spec of GROUPS) loadFigures(spec, p);
   loadSchedule(p);
 
   form.onsubmit = (e) => {
@@ -880,19 +916,23 @@ function renderForm(id) {
       return;
     }
 
-    const temps = readTemps();
-    const wrong = firstOutOfOrder(temps);
-    for (const key of TEMP_KEYS) {
-      $(TEMP_BOXES[key]).classList.toggle('invalid', key === wrong);
+    // Every group is checked even once one has failed, so that a complaint
+    // about a box that has since been fixed never survives on screen.
+    const figures = {};
+    let firstProblem = '';
+    for (const spec of GROUPS) {
+      figures[spec.group] = readFigures(spec);
+      const wrong = markFigureProblem(spec, figures[spec.group]);
+      if (wrong && !firstProblem) firstProblem = spec.fields[wrong];
     }
-    $('#f-temp-error').textContent = wrong ? TEMP_ORDER_MESSAGE : '';
-    $('#f-temp-error').hidden = !wrong;
-    if (wrong) {
-      $(TEMP_BOXES[wrong]).focus();
+    if (firstProblem) {
+      $(firstProblem).focus();
       return;
     }
 
     const now = new Date().toISOString();
+    const temps = figures.temps;
+    const humidity = figures.humidity;
     const water = $('#f-water').value.trim();
     const notes = $('#f-notes').value.trim();
     const place = readPlace();
@@ -900,9 +940,10 @@ function renderForm(id) {
 
     let saved = p;
     if (p) {
-      Object.assign(p, { name, place, temps, water, notes, schedule, updatedAt: now });
+      Object.assign(p, { name, place, temps, humidity, water, notes, schedule,
+                         updatedAt: now });
     } else {
-      saved = { id: uid(), name, place, temps, water, notes, schedule,
+      saved = { id: uid(), name, place, temps, humidity, water, notes, schedule,
                 createdAt: now, updatedAt: now };
       plants.push(saved);
     }

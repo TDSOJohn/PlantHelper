@@ -57,23 +57,27 @@ Nothing else keys off it: it does not filter the lists and does not affect
 schedules. Plants added before it existed read as *Not set* until you say
 otherwise, and can be left that way indefinitely.
 
-## Temperature
+## Temperature and humidity
 
-Four optional numbers, in whole °C: the range the plant is *happy* in, and the
-wider range it merely *survives*. Fill in whichever you know and leave the rest
-blank — a plant recorded only as surviving down to 5 °C is a perfectly good
-record.
+Six optional numbers. Four temperatures in whole °C — the range the plant is
+*happy* in, and the wider range it merely *survives* — and two humidities in
+whole per cent. Fill in whichever you know and leave the rest blank; a plant
+recorded only as surviving down to 5 °C is a perfectly good record.
 
-The detail page reads them back as one line, `18–27 °C · Survives 5 to 38 °C`,
-collapsing to a bound where only one end of a range is set: *Happy above 12 °C*,
-*Survives up to 38 °C*.
+The detail page reads each group back as one line, `18–27 °C · Survives 5 to
+38 °C` and `40–60%`, collapsing to a bound where only one end of a range is
+set: *Above 12 °C*, *Below 60%*, *Survives up to 38 °C*.
 
-The one rule enforced is **order**. Coldest to warmest the four are `absMin`,
-`avgMin`, `avgMax`, `absMax`, and each must be at least the one before it.
-Blanks are skipped rather than counted as zero, so filling in only the two
-comfortable figures checks them against each other and nothing else. Saving
-stops with the offending box highlighted rather than storing a range that reads
-backwards. Values outside -60…60 °C are clamped.
+The one rule enforced is **order**. Coldest to warmest the temperatures are
+`absMin`, `avgMin`, `avgMax`, `absMax`; humidity is `min` then `max`. Within a
+group each figure must be at least the one before it. Blanks are skipped rather
+than counted as zero, so filling in only the two comfortable temperatures
+checks them against each other and nothing else, and the two groups are never
+compared with one another. Saving stops with the offending box highlighted
+rather than storing a range that reads backwards — and both groups are checked
+on every attempt, so a complaint about a box you have since fixed does not
+linger while you deal with the other one. Figures outside -60…60 °C or 0…100%
+are clamped rather than refused.
 
 Nothing else keys off them: they do not affect schedules, and they are kept off
 the list lines, which already carry the place and the watering status. Plants
@@ -249,6 +253,7 @@ usual on an SD card. Prefer `sudo shutdown -h now` over pulling the plug.
       "name": "Monstera deliciosa",
       "place": "inside",
       "temps": { "absMin": 5, "avgMin": 18, "avgMax": 27, "absMax": 38 },
+      "humidity": { "min": 40, "max": 60 },
       "schedule": { "type": "interval", "days": 7, "start": "2026-08-19" },
       "lastWatered": "2026-08-19",
       "photo": "2026-08-19T10:04:00.000Z",
@@ -262,6 +267,7 @@ usual on an SD card. Prefer `sudo shutdown -h now` over pulling the plug.
       "name": "Basil",
       "place": "outside",
       "temps": { "avgMin": 15 },
+      "humidity": null,
       "schedule": { "type": "weekly", "weekdays": [1, 5] },
       "water": "",
       "notes": "Kitchen windowsill.",
@@ -276,9 +282,10 @@ usual on an SD card. Prefer `sudo shutdown -h now` over pulling the plug.
 to 6 = Saturday, and `lastWatered` is a local date. `photo` is absent when there
 is none; when present its value is only a version stamp — the image itself is
 `<data>/photos/<id>.jpg`. `place` is `"inside"`, `"outside"`, or empty/absent
-when it was never set. `temps` is `null` or absent until at least one of the
-four is filled in, and then carries only the ones that were — as in Basil
-above. Plants saved before a field existed simply have no key for it — an older
+when it was never set. `temps` and `humidity` are each `null` or absent until
+at least one of their figures is filled in, and then carry only the ones that
+were — as in Basil above, which has a comfortable low and nothing else.
+Plants saved before a field existed simply have no key for it — an older
 plant has no `schedule` and never appears in *Water today*, and no `place` and
 reads as *Not set*. Nothing to migrate either way.
 

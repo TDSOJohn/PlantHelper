@@ -54,6 +54,10 @@
         <p id="d-temp" class="value"></p>
       </div>
       <div class="field">
+        <span class="label">Humidity</span>
+        <p id="d-humidity" class="value"></p>
+      </div>
+      <div class="field">
         <span class="label">Schedule</span>
         <p id="d-sched" class="value"></p>
       </div>
@@ -120,6 +124,20 @@
         </div>
         <p id="f-temp-error" class="hint error" hidden></p>
         <p class="hint">All four are optional — fill in the ones you know.</p>
+      </fieldset>
+
+      <fieldset class="group">
+        <legend>Humidity</legend>
+        <div class="inline">
+          <span>Happy at</span>
+          <input id="f-hum-min" type="number" min="0" max="100" step="1"
+                 inputmode="numeric" placeholder="40" aria-label="Comfortable low, per cent">
+          <span>to</span>
+          <input id="f-hum-max" type="number" min="0" max="100" step="1"
+                 inputmode="numeric" placeholder="60" aria-label="Comfortable high, per cent">
+          <span>%</span>
+        </div>
+        <p id="f-hum-error" class="hint error" hidden></p>
       </fieldset>
 
       <fieldset class="group">
