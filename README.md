@@ -2,8 +2,9 @@
 
 A personal database of the plants I own, served from a Raspberry Pi on the home
 network. A tab bar moves between **Today** (what needs water), **All plants**,
-**Add** and **Settings**. Each plant has notes, a watering schedule, a photo,
-the temperatures it likes, and a note of whether it lives inside or outside.
+**Add** and **Settings**. Each plant has a name and a species, notes, a watering
+schedule, a photo, the temperatures it likes, and a note of whether it lives
+inside or outside.
 
 No frameworks and no dependencies: a static page plus a ~250-line Python
 standard-library server. Nothing to install on the Pi beyond what Raspberry Pi
@@ -14,6 +15,25 @@ index.html  styles.css  app.js  icon*      the page
 server.py                                  static files, /api/plants, photos
 plants.service  install.sh                 run it under systemd
 ```
+
+## Name and species
+
+The **name** is whatever you actually call the plant — *Basil*, *the big one in
+the kitchen*. It is the only required field, and it is what the lists show and
+sort by. The **species** is the botanical name: optional, free text, and shown
+on the plant's own page rather than in the lists, which are already carrying
+the place and the watering status.
+
+Keeping the two apart means a nickname never has to pretend to be a binomial,
+and two plants of the same species can still be told apart at a glance. On the
+species box autocorrect and word-capitalisation are turned off, because a
+binomial capitalises only its genus and iOS is otherwise keen to turn
+*deliciosa* into *delicious*.
+
+Nothing validates the species against a list of real plants. An earlier attempt
+at that — the World Flora Online backbone baked in as a lookup — was dropped:
+90-odd thousand names is a lot of file to carry for autocomplete alone, when
+the taxonomy carries no care information to go with it.
 
 ## Watering schedules
 
@@ -271,7 +291,8 @@ usual on an SD card. Prefer `sudo shutdown -h now` over pulling the plug.
   "plants": [
     {
       "id": "m1a2b3-x9y8z7",
-      "name": "Monstera deliciosa",
+      "name": "The big one in the kitchen",
+      "species": "Monstera deliciosa",
       "place": "inside",
       "temps": { "absMin": 5, "avgMin": 18, "avgMax": 27, "absMax": 38 },
       "humidity": { "min": 40, "max": 60 },
@@ -286,6 +307,7 @@ usual on an SD card. Prefer `sudo shutdown -h now` over pulling the plug.
     {
       "id": "k9j8h7-a1b2c3",
       "name": "Basil",
+      "species": "Ocimum basilicum",
       "place": "outside",
       "temps": { "avgMin": 15 },
       "humidity": null,
@@ -303,7 +325,8 @@ usual on an SD card. Prefer `sudo shutdown -h now` over pulling the plug.
 to 6 = Saturday, and `lastWatered` is a local date. `photo` is absent when there
 is none; when present its value is only a version stamp — the image itself is
 `<data>/photos/<id>.jpg`. `place` is `"inside"`, `"outside"`, or empty/absent
-when it was never set. `temps` and `humidity` are each `null` or absent until
+when it was never set. `species` is free text, empty or absent when it was
+never filled in. `temps` and `humidity` are each `null` or absent until
 at least one of their figures is filled in, and then carry only the ones that
 were — as in Basil above, which has a comfortable low and nothing else.
 Plants saved before a field existed simply have no key for it — an older

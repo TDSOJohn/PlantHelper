@@ -690,6 +690,7 @@ function renderDetail(id) {
     photo.removeAttribute('src');
   }
 
+  fill($('#d-species'), p.species, 'Not set');
   fill($('#d-place'), placeText(p), 'Not set');
   fill($('#d-temp'), tempText(p), 'Not set');
   fill($('#d-humidity'), humidityText(p), 'Not set');
@@ -900,6 +901,7 @@ function renderForm(id) {
   const form = $('#form');
   form.reset();
   $('#f-name').value = p ? p.name : '';
+  $('#f-species').value = p ? p.species || '' : '';
   $('#f-water').value = p ? p.water || '' : '';
   $('#f-notes').value = p ? p.notes || '' : '';
   $('#f-name').classList.remove('invalid');
@@ -931,6 +933,7 @@ function renderForm(id) {
     }
 
     const now = new Date().toISOString();
+    const species = $('#f-species').value.trim();
     const temps = figures.temps;
     const humidity = figures.humidity;
     const water = $('#f-water').value.trim();
@@ -940,11 +943,11 @@ function renderForm(id) {
 
     let saved = p;
     if (p) {
-      Object.assign(p, { name, place, temps, humidity, water, notes, schedule,
-                         updatedAt: now });
+      Object.assign(p, { name, species, place, temps, humidity, water, notes,
+                         schedule, updatedAt: now });
     } else {
-      saved = { id: uid(), name, place, temps, humidity, water, notes, schedule,
-                createdAt: now, updatedAt: now };
+      saved = { id: uid(), name, species, place, temps, humidity, water, notes,
+                schedule, createdAt: now, updatedAt: now };
       plants.push(saved);
     }
 

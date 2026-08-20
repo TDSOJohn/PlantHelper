@@ -46,6 +46,10 @@
       <h2 id="d-name"></h2>
 
       <div class="field">
+        <span class="label">Species</span>
+        <p id="d-species" class="value"></p>
+      </div>
+      <div class="field">
         <span class="label">Where</span>
         <p id="d-place" class="value"></p>
       </div>
@@ -91,7 +95,14 @@
     <form id="form" class="form" novalidate>
       <label for="f-name">Name</label>
       <input id="f-name" name="name" type="text" required maxlength="80"
-             autocomplete="off" autocapitalize="words" placeholder="Monstera deliciosa">
+             autocomplete="off" autocapitalize="words" placeholder="The big one in the kitchen">
+
+      <label for="f-species">Species</label>
+      <!-- A binomial is capitalised only on the genus, and iOS will happily
+           "correct" deliciosa into delicious, so both helpers are turned off. -->
+      <input id="f-species" name="species" type="text" maxlength="80"
+             autocomplete="off" autocapitalize="sentences" autocorrect="off"
+             spellcheck="false" placeholder="Monstera deliciosa">
 
       <fieldset class="group">
         <legend>Where it lives</legend>
