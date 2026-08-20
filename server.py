@@ -34,6 +34,12 @@ API_PATH = "/api/plants"
 PHOTO_API = re.compile(r"^/api/photo/([A-Za-z0-9_-]{1,64})$")
 PHOTO_FILE = re.compile(r"^/photos/([A-Za-z0-9_-]{1,64})\.jpg$")
 
+# What a plant id has to look like before it is turned into a file name. The
+# two routes above get this from their own patterns; the sweep below needs it
+# because the ids it works from come out of the request body, where "../.." is
+# just as easy to write as anything else.
+SAFE_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+
 MAX_BODY = 4 * 1024 * 1024        # a plant list will never come close
 MAX_PHOTO = 2 * 1024 * 1024       # a 512x512 JPEG is ~50 kB
 BACKUP_KEEP = 30                  # daily snapshots to retain
@@ -115,6 +121,32 @@ class Store:
             return True
         except FileNotFoundError:
             return False
+
+    def sweep_photos(self, plants):
+        """Drop the photo of every plant that is now a tombstone.
+
+        The browser fires a DELETE of its own when you delete a plant, but it
+        is fire-and-forget: if the Pi is unreachable at that moment, or the
+        phone was offline, the JPEG is left behind with nothing referencing it
+        and nothing to retry. A `deletedAt` is final — tombstones exist so an
+        offline phone cannot resurrect a plant — so the file is unreferenced
+        for good, and the tombstone always reaches the server eventually.
+
+        Returns the number of files removed.
+        """
+        removed = 0
+        for plant in plants:
+            if not isinstance(plant, dict) or not plant.get("deletedAt"):
+                continue
+            plant_id = plant.get("id")
+            if not isinstance(plant_id, str) or not SAFE_ID.match(plant_id):
+                continue
+            try:
+                if self.delete_photo(plant_id):
+                    removed += 1
+            except OSError:
+                pass          # a stray file is not worth failing a sync over
+        return removed
 
     # ---------- disk ----------
 
@@ -242,9 +274,13 @@ class Handler(SimpleHTTPRequestHandler):
         with _lock:
             try:
                 current = self.store.load()
-                doc = self.store.save(merge(current["plants"], incoming))
+                merged = merge(current["plants"], incoming)
+                doc = self.store.save(merged)
             except Exception as exc:
                 return self._fail(500, "Cannot write the data file: %s" % exc)
+            # Only once the list is safely on disk, and still under the lock so
+            # this cannot overtake a photo upload arriving at the same moment.
+            self.store.sweep_photos(merged)
 
         self._send_json(200, doc)
 

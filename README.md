@@ -102,6 +102,27 @@ Photos are the one part of the app with **no offline path**: they go straight to
 the server, and if it cannot be reached the app says so and changes nothing.
 Everything else keeps working from the local cache.
 
+Replacing a photo overwrites the same file — the name comes from the plant id,
+so there is never an old one to clean up, and the write is atomic like every
+other. Deleting a plant is handled twice over: the browser fires a `DELETE`,
+and then every sync sweeps the photo of any plant carrying a `deletedAt`. The
+sweep is the one that counts, because the browser's request is fire-and-forget
+— a plant deleted while the Pi was unreachable, or from a phone that was
+offline, would otherwise leave its JPEG behind with nothing pointing at it and
+nothing to retry. Tombstones always arrive in the end, and a `deletedAt` is
+final, so the file is unreferenced for good.
+
+Ids reaching the sweep come out of the request body rather than a URL, so they
+are checked against the same character class the photo routes use before being
+turned into a filename; `../..` in an id is stored as an ordinary string and
+never touches the disk.
+
+One gap is left deliberately. If **Remove photo** fails to reach the server,
+the record forgets the photo but the file stays. Sweeping on *the record has no
+`photo` key* would catch it, but could race a photo that has been uploaded
+seconds before its record syncs, and deleting a photo someone just took is
+worse than leaving 50 kB on a memory card.
+
 ## How it works
 
 The Pi serves both the page and its data, so everything is same-origin: no
