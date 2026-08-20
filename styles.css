@@ -296,6 +296,7 @@ main { max-width: 720px; margin: 0 auto; }
   color: var(--ink-dim);
   font-size: 14px;
 }
+.hint.error { color: var(--danger); }
 
 /* the README, shown as-is */
 .doc {
@@ -372,12 +373,13 @@ main { max-width: 720px; margin: 0 auto; }
 
 .inline {
   display: flex;
+  flex-wrap: wrap;      /* two numbers and their labels overflow a narrow phone */
   align-items: center;
   gap: 10px;
   margin-top: 14px;
   font-size: 15px;
 }
-.inline input { width: 5em; text-align: center; }
+.inline input { flex: none; width: 4.5em; text-align: center; }
 
 input[type="text"],
 input[type="number"],

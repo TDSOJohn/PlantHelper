@@ -62,6 +62,50 @@ const PLACE = { inside: 'Inside', outside: 'Outside' };
 const placeText = (plant) => PLACE[plant.place] || '';
 
 /* =========================================================================
+   Temperatures
+
+   plant.temps is { absMin, avgMin, avgMax, absMax }, in whole °C: the range
+   the plant is happy in, and the range it merely survives. Every one of them
+   is optional — a key is present only once it has been filled in, and `temps`
+   itself is null or absent until at least one has been. That is what every
+   plant added before this existed looks like, so there is nothing to migrate.
+   ========================================================================= */
+
+const TEMP_MIN = -60;
+const TEMP_MAX = 60;
+
+/** Coldest to warmest. The form and the ordering check both rely on this. */
+const TEMP_KEYS = ['absMin', 'avgMin', 'avgMax', 'absMax'];
+
+const degrees = (text) => text + ' °C';
+
+/** One stored temperature, or null where it was never filled in. */
+function temp(plant, key) {
+  const value = plant.temps ? Number(plant.temps[key]) : NaN;
+  return isFinite(value) ? value : null;
+}
+
+/** "18–27 °C · Survives 5 to 38 °C", with either half alone if that is all there is. */
+function tempText(plant) {
+  const avgMin = temp(plant, 'avgMin');
+  const avgMax = temp(plant, 'avgMax');
+  const absMin = temp(plant, 'absMin');
+  const absMax = temp(plant, 'absMax');
+
+  let happy = '';
+  if (avgMin !== null && avgMax !== null) happy = degrees(avgMin + '–' + avgMax);
+  else if (avgMin !== null) happy = 'Happy above ' + degrees(avgMin);
+  else if (avgMax !== null) happy = 'Happy below ' + degrees(avgMax);
+
+  let limits = '';
+  if (absMin !== null && absMax !== null) limits = 'Survives ' + degrees(absMin + ' to ' + absMax);
+  else if (absMin !== null) limits = 'Survives down to ' + degrees(absMin);
+  else if (absMax !== null) limits = 'Survives up to ' + degrees(absMax);
+
+  return [happy, limits].filter(Boolean).join(' · ');
+}
+
+/* =========================================================================
    Calendar days
 
    Schedules are about *days*, not instants, so they use local "YYYY-MM-DD"
@@ -640,6 +684,7 @@ function renderDetail(id) {
   }
 
   fill($('#d-place'), placeText(p), 'Not set');
+  fill($('#d-temp'), tempText(p), 'Not set');
 
   const schedule = scheduleText(p);
   const status = statusText(p, today);
@@ -714,6 +759,55 @@ function readPlace() {
   return !checked || checked.value === 'none' ? '' : checked.value;
 }
 
+const TEMP_BOXES = {
+  absMin: '#f-abs-min',
+  avgMin: '#f-avg-min',
+  avgMax: '#f-avg-max',
+  absMax: '#f-abs-max'
+};
+
+const TEMP_ORDER_MESSAGE =
+  'Those read out of order — they should rise from the coldest it survives to the hottest.';
+
+function loadTemps(plant) {
+  for (const key of TEMP_KEYS) {
+    const box = $(TEMP_BOXES[key]);
+    const value = plant ? temp(plant, key) : null;
+    box.value = value === null ? '' : value;
+    box.classList.remove('invalid');
+  }
+  $('#f-temp-error').hidden = true;
+}
+
+/** Reads the four boxes. Returns null when none of them were filled in. */
+function readTemps() {
+  const out = {};
+  let any = false;
+  for (const key of TEMP_KEYS) {
+    const raw = $(TEMP_BOXES[key]).value.trim();
+    if (!raw) continue;
+    const value = Math.round(Number(raw));
+    if (!isFinite(value)) continue;      // a browser that let something odd through
+    out[key] = Math.min(TEMP_MAX, Math.max(TEMP_MIN, value));
+    any = true;
+  }
+  return any ? out : null;
+}
+
+/**
+ * The first box holding a temperature lower than the one before it, or '' if
+ * they all read low to high. Blanks are skipped, so filling in only the two
+ * comfortable figures is checked against each other and nothing else.
+ */
+function firstOutOfOrder(temps) {
+  if (!temps) return '';
+  const filled = TEMP_KEYS.filter((key) => key in temps);
+  for (let i = 1; i < filled.length; i++) {
+    if (temps[filled[i]] < temps[filled[i - 1]]) return filled[i];
+  }
+  return '';
+}
+
 function selectedSchedType() {
   const checked = schedRadios().filter((r) => r.checked)[0];
   return checked ? checked.value : 'none';
@@ -774,6 +868,7 @@ function renderForm(id) {
   $('#f-notes').value = p ? p.notes || '' : '';
   $('#f-name').classList.remove('invalid');
   loadPlace(p);
+  loadTemps(p);
   loadSchedule(p);
 
   form.onsubmit = (e) => {
@@ -785,6 +880,18 @@ function renderForm(id) {
       return;
     }
 
+    const temps = readTemps();
+    const wrong = firstOutOfOrder(temps);
+    for (const key of TEMP_KEYS) {
+      $(TEMP_BOXES[key]).classList.toggle('invalid', key === wrong);
+    }
+    $('#f-temp-error').textContent = wrong ? TEMP_ORDER_MESSAGE : '';
+    $('#f-temp-error').hidden = !wrong;
+    if (wrong) {
+      $(TEMP_BOXES[wrong]).focus();
+      return;
+    }
+
     const now = new Date().toISOString();
     const water = $('#f-water').value.trim();
     const notes = $('#f-notes').value.trim();
@@ -793,9 +900,10 @@ function renderForm(id) {
 
     let saved = p;
     if (p) {
-      Object.assign(p, { name, place, water, notes, schedule, updatedAt: now });
+      Object.assign(p, { name, place, temps, water, notes, schedule, updatedAt: now });
     } else {
-      saved = { id: uid(), name, place, water, notes, schedule, createdAt: now, updatedAt: now };
+      saved = { id: uid(), name, place, temps, water, notes, schedule,
+                createdAt: now, updatedAt: now };
       plants.push(saved);
     }
 
