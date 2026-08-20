@@ -169,13 +169,16 @@
           <span>%</span>
         </div>
         <p id="f-hum-error" class="hint error" hidden></p>
+        <!-- Text, not number: iOS offers a comma on the decimal keypad, and a
+             number field reads back as empty when one is typed. app.js parses
+             both separators and clamps to the 0-14 scale. -->
         <div class="inline">
           <span>Soil pH</span>
-          <input id="f-ph-min" type="number" min="0" max="14" step="0.1"
-                 inputmode="decimal" aria-label="Lowest soil pH">
+          <input id="f-ph-min" type="text" inputmode="decimal" maxlength="5"
+                 autocomplete="off" aria-label="Lowest soil pH">
           <span>to</span>
-          <input id="f-ph-max" type="number" min="0" max="14" step="0.1"
-                 inputmode="decimal" aria-label="Highest soil pH">
+          <input id="f-ph-max" type="text" inputmode="decimal" maxlength="5"
+                 autocomplete="off" aria-label="Highest soil pH">
         </div>
         <p id="f-ph-error" class="hint error" hidden></p>
       </fieldset>
@@ -297,13 +300,14 @@
           <span>%</span>
         </div>
         <p id="sp-hum-error" class="hint error" hidden></p>
+        <!-- Text rather than number, for the comma; see the plant form above. -->
         <div class="inline">
           <span>Soil pH</span>
-          <input id="sp-ph-min" type="number" min="0" max="14" step="0.1"
-                 inputmode="decimal" aria-label="Lowest soil pH">
+          <input id="sp-ph-min" type="text" inputmode="decimal" maxlength="5"
+                 autocomplete="off" aria-label="Lowest soil pH">
           <span>to</span>
-          <input id="sp-ph-max" type="number" min="0" max="14" step="0.1"
-                 inputmode="decimal" aria-label="Highest soil pH">
+          <input id="sp-ph-max" type="text" inputmode="decimal" maxlength="5"
+                 autocomplete="off" aria-label="Highest soil pH">
         </div>
         <p id="sp-ph-error" class="hint error" hidden></p>
       </fieldset>

@@ -330,6 +330,31 @@ a.from { color: var(--accent); font-style: normal; text-decoration: underline; }
   font-weight: 600;
 }
 
+/* Base styles for the controls. These have to stay ABOVE the narrower rules
+   further down — `.inline input` and `input[type="number"]` have identical
+   specificity, so whichever comes last wins, and with this block below them
+   the 100% was stretching every inline box across the form. */
+input[type="text"],
+input[type="number"],
+textarea {
+  display: block;
+  width: 100%;
+  padding: 12px 14px;
+  background: var(--card);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font: inherit;
+  font-size: 16px; /* keeps iOS from zooming on focus */
+}
+input:focus, textarea:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+textarea { resize: vertical; }
+
+input.invalid { border-color: var(--danger); }
+
 .hint {
   margin: 8px 0 0;
   color: var(--ink-dim);
@@ -419,27 +444,6 @@ a.from { color: var(--accent); font-style: normal; text-decoration: underline; }
   font-size: 15px;
 }
 .inline input { flex: none; width: 4.5em; text-align: center; }
-
-input[type="text"],
-input[type="number"],
-textarea {
-  display: block;
-  width: 100%;
-  padding: 12px 14px;
-  background: var(--card);
-  color: var(--ink);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  font: inherit;
-  font-size: 16px; /* keeps iOS from zooming on focus */
-}
-input:focus, textarea:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: -1px;
-}
-textarea { resize: vertical; }
-
-input.invalid { border-color: var(--danger); }
 
 /* ---------- buttons ---------- */
 .row {

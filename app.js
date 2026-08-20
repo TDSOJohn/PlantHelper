@@ -991,6 +991,17 @@ function roundTo(value, decimals) {
   return Math.round(value * factor) / factor;
 }
 
+/**
+ * Read a typed number, accepting a comma for the decimal point.
+ *
+ * Most of Europe puts a comma there, and that is the key iOS offers on its
+ * decimal keypad. An `<input type="number">` only understands a full stop, and
+ * when it cannot parse what is in it, it hands back an empty string rather
+ * than the text — so a pH typed as "6,5" vanished silently. The pH boxes are
+ * therefore plain text and the parsing happens here.
+ */
+const decimal = (raw) => Number(String(raw).replace(/,/g, '.'));
+
 /** Reads one group's boxes. Returns null when none of them were filled in. */
 function readFigures(spec) {
   const out = {};
@@ -998,8 +1009,8 @@ function readFigures(spec) {
   for (const key of Object.keys(spec.fields)) {
     const raw = $(spec.fields[key]).value.trim();
     if (!raw) continue;
-    const value = roundTo(Number(raw), spec.decimals);
-    if (!isFinite(value)) continue;      // a browser that let something odd through
+    const value = roundTo(decimal(raw), spec.decimals);
+    if (!isFinite(value)) continue;      // reported by markFigureProblem instead
     out[key] = Math.min(spec.ceiling, Math.max(spec.floor, value));
     any = true;
   }
@@ -1020,13 +1031,33 @@ function firstOutOfOrder(spec, values) {
   return '';
 }
 
+const NOT_A_NUMBER = 'That does not read as a number.';
+
+/**
+ * A box holding something no amount of goodwill turns into a number, or ''.
+ * Only the pH boxes can reach this: the rest are `type="number"`, which will
+ * not let anything else be typed in the first place.
+ */
+function firstUnreadable(spec) {
+  for (const key of Object.keys(spec.fields)) {
+    const raw = $(spec.fields[key]).value.trim();
+    // The emptiness check is belt and braces today, since Number('') is 0
+    // rather than NaN, but it is what stops an empty box being called a bad
+    // one the moment anybody reaches for parseFloat instead.
+    if (raw && !isFinite(decimal(raw))) return key;
+  }
+  return '';
+}
+
 /** Shows or clears one group's complaint; returns the offending key, or ''. */
 function markFigureProblem(spec, values) {
-  const wrong = firstOutOfOrder(spec, values);
+  const unreadable = firstUnreadable(spec);
+  const wrong = unreadable || firstOutOfOrder(spec, values);
+
   for (const key of Object.keys(spec.fields)) {
     $(spec.fields[key]).classList.toggle('invalid', key === wrong);
   }
-  $(spec.error).textContent = wrong ? spec.message : '';
+  $(spec.error).textContent = !wrong ? '' : (unreadable ? NOT_A_NUMBER : spec.message);
   $(spec.error).hidden = !wrong;
   return wrong;
 }
@@ -1065,7 +1096,7 @@ function readLight(spec) {
 
   const raw = $(spec.hours).value.trim();
   if (raw) {
-    const hours = Math.round(Number(raw));
+    const hours = Math.round(decimal(raw));
     if (isFinite(hours)) out.hours = Math.min(24, Math.max(0, hours));
   }
 

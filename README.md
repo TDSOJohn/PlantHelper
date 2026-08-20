@@ -168,6 +168,14 @@ light* with no hours, or *6 hours of light* with no flag.
 is the difference between a happy hydrangea and a chlorotic one. Everything
 else rounds to whole numbers, where a decimal would be false precision.
 
+Type `6,5` or `6.5` as you prefer — the pH boxes take either. They are the only
+plain-text fields on the forms, and that is why: an `<input type="number">`
+accepts a full stop and nothing else, and when it cannot parse its own contents
+it reports an empty string rather than the text. On an iOS keypad set to a
+comma locale, a pH typed with one therefore vanished on save without a word.
+Since a text box can hold anything at all, something that is not a number stops
+the save and says so, rather than being quietly dropped.
+
 The one rule enforced is **order**. Coldest to warmest the temperatures are
 `absMin`, `avgMin`, `avgMax`, `absMax`; humidity and pH are `min` then `max`.
 Within a group each figure must be at least the one before it. Blanks are skipped rather
