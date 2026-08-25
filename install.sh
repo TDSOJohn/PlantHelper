@@ -6,8 +6,8 @@
 # Override any of these if you like:
 #     APP_DIR=/opt/plants DATA_DIR=/var/lib/plants PORT=80 sudo -E ./install.sh
 #
-# Re-running it is safe: it updates the files and restarts the service, and
-# never touches the data directory.
+# Re-running it is safe: it updates the app, refreshes the reference catalogue
+# if the repo carries one, and never touches your plant list.
 set -eu
 
 APP_DIR=${APP_DIR:-/opt/plants}
@@ -37,6 +37,24 @@ install -m 755 -t "$APP_DIR" "$SRC/server.py"
 
 echo "preparing $DATA_DIR"
 install -d -m 750 -o "$SERVICE_USER" -g "$SERVICE_USER" "$DATA_DIR"
+
+# The reference catalogue, when the repo carries one. Safe to replace wholesale
+# because it is derived: plants_db rebuilds it from the Wikipedia dump, and
+# nothing in the app ever writes to it. plants.json is the opposite on every
+# count and is never copied from the repo — the plant list on the Pi is the
+# only copy that matters, and overwriting it with a developer's would be
+# unrecoverable.
+#
+# Staged and renamed rather than written over. The server opens the file on
+# every search, and one landing in the window where a plain copy has truncated
+# it gets "Cannot read the catalogue" — about one request in 400 when measured,
+# which is rare enough to be baffling rather than obviously self-inflicted.
+if [ -f "$SRC/data/plants.sqlite" ]; then
+  echo "installing the catalogue into $DATA_DIR"
+  install -m 640 -o "$SERVICE_USER" -g "$SERVICE_USER" \
+    "$SRC/data/plants.sqlite" "$DATA_DIR/plants.sqlite.new"
+  mv "$DATA_DIR/plants.sqlite.new" "$DATA_DIR/plants.sqlite"
+fi
 
 echo "installing the service"
 sed -e "s|@APP_DIR@|$APP_DIR|g" \

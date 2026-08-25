@@ -376,33 +376,32 @@ That copies the app to `/opt/plants`, creates a system user, puts the data in
 APP_DIR=/opt/plants DATA_DIR=/var/lib/plants PORT=80 sudo -E ./install.sh
 ```
 
-Re-running it updates the app and restarts the service; it never touches the
-data directory.
+Re-running it updates the app, refreshes the catalogue and restarts the
+service; it never touches your plant list.
 
-The catalogue is not part of that, because it is not part of the app and it is
-too big to keep in git. Copy it across once, and again whenever you re-mine the
-dump:
+`data/plants.sqlite` travels in the repo, so `install.sh` places it too — one
+pull and one install is the whole update, app and catalogue together.
 
-```sh
-scp plants.sqlite plants.local:/tmp/
-ssh -t plants.local 'set -e
-  sudo install -o plants -g plants -m 640 /tmp/plants.sqlite /var/lib/plants/plants.sqlite.new
-  sudo mv /var/lib/plants/plants.sqlite.new /var/lib/plants/plants.sqlite
-  rm /tmp/plants.sqlite
-  sudo systemctl restart plants'
-```
+It is installed the way derived data can be and a plant list cannot: replaced
+wholesale, every run. **`plants.json` is never copied from the repo.** The list
+on the Pi is the only copy that matters, and overwriting it with a developer's
+would be unrecoverable — so the installer takes the catalogue and nothing else
+out of `data/`.
 
-Staging in `/tmp` and moving into place is not ceremony. Written straight over,
-the file is briefly truncated, and a search landing in that window gets *"Cannot
-read the catalogue"* — one request in 400 in a crude test, which is rare enough
-to be baffling rather than obviously your own fault. A rename is atomic, so a
-reader sees either the whole old file or the whole new one. `-t` is there so
-`sudo` can still ask for a password.
+The file is staged and renamed rather than written over. The server opens it on
+every search, and one landing in the window where a plain copy has truncated it
+gets *"Cannot read the catalogue"* — about one request in 400 when measured,
+rare enough to be baffling rather than obviously self-inflicted.
 
-The restart is not decoration either. Searches open the file fresh every time
-and so pick up a replacement immediately, but the coverage counts behind the
-*"of the 5,065 entries, 234 record a soil pH"* line are read once and kept for
-the life of the process.
+The restart at the end of `install.sh` matters for the same reason a fresh
+search does not: searches open the file every time and pick up a replacement at
+once, but the coverage counts behind the *"of the 5,065 entries, 234 record a
+soil pH"* line are read once and kept for the life of the process.
+
+Keeping a 3.9 MB binary in git costs a new copy in history every time the dump
+is re-mined; at a handful of rebuilds that is fine, and if it ever stops being
+fine the file can move out of the repo without the app noticing — `--catalog`
+points anywhere.
 
 ### 3. Open it
 
