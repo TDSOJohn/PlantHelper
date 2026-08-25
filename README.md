@@ -180,6 +180,28 @@ natural next step; it should **copy** the figures rather than link to them, so
 that re-mining a newer dump can never silently change the care figures of a
 plant you own.
 
+## The tab bar and the keyboard
+
+The tab bar takes itself away while the software keyboard is up, and comes back
+when it goes down. Partly because there is nothing there to tap mid-sentence
+and a phone screen is small, but mainly because of what iOS does with viewports.
+
+The keyboard shrinks the **visual** viewport — what you can see — and leaves
+the **layout** viewport, which is what `position: fixed` is measured against,
+at full height. That much is expected. What is not is that dismissing the
+keyboard does not reliably put the two back in step: the bar ends up stranded
+a keyboard's height above the bottom of the screen, sliding about on every
+scroll because iOS repaints fixed elements only once scrolling stops.
+
+Removing the bar means there is nothing left stranded. Putting it back forces a
+fresh layout and nudges the scroller, which is what actually gets the two
+viewports measured against each other again — restoring it alone leaves it
+wherever iOS last painted it. The nudge happens only on the way out; doing it
+on the way in would drag the field being typed into out from under the cursor.
+
+All of it sits behind a `window.visualViewport` check, so a browser without one
+keeps the plain fixed bar it always had.
+
 ## Watering schedules
 
 A plant can have one of two schedules, or none at all:

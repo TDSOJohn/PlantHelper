@@ -1843,6 +1843,45 @@ $('#s-forget').onclick = () => {
   sync(true);
 };
 
+/* The software keyboard and the tab bar.
+
+   iOS shrinks the *visual* viewport to make room for the keyboard but leaves
+   the *layout* viewport — the one `position: fixed` is measured against — at
+   full height. Dismissing the keyboard does not reliably put the two back in
+   step, and the bar is left stranded a keyboard's height above the bottom,
+   juddering on every scroll because iOS repaints fixed elements only once
+   scrolling stops.
+
+   Taking the bar away while typing is worth doing for its own sake — there is
+   nothing there to tap mid-sentence, and a phone needs the room — and it also
+   means there is nothing left stranded to correct. Putting it back forces a
+   fresh layout and nudges the scroller, which is what actually gets iOS to
+   measure the two viewports against each other again.
+
+   All of this is behind a `visualViewport` check, so a browser without one
+   keeps the plain fixed bar it always had. */
+const viewport = window.visualViewport;
+if (viewport) {
+  const tabs = $('.tabs');
+  // A keyboard costs 250px and up; Safari's own toolbars sliding away cost far
+  // less, and must not be mistaken for one.
+  const KEYBOARD = 150;
+  let covered = false;
+
+  viewport.addEventListener('resize', () => {
+    const nowCovered = window.innerHeight - viewport.height > KEYBOARD;
+    if (nowCovered === covered) return;
+    covered = nowCovered;
+    tabs.classList.toggle('away', covered);
+    if (covered) return;
+
+    requestAnimationFrame(() => {
+      void tabs.offsetHeight;              // lay it out again, now it is back
+      window.scrollTo(0, window.scrollY);  // and make the scroller re-measure
+    });
+  });
+}
+
 // Coming back to a phone that has been asleep: re-check the server, and
 // re-render in case the date rolled over while it was in your pocket.
 document.addEventListener('visibilitychange', () => {

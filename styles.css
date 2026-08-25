@@ -51,6 +51,10 @@ body {
   border-top: 1px solid var(--line);
 }
 
+/* Out of the way while the software keyboard is up. `hidden` would not do it:
+   the `display: flex` above outranks the browser's own `[hidden]` rule. */
+.tabs.away { display: none; }
+
 .tab {
   flex: 1;
   display: flex;
