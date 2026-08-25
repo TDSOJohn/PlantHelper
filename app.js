@@ -643,10 +643,13 @@ function markWatered(id) {
 }
 
 /* =========================================================================
-   Routing — #/ , #/all , #/new , #/p/<id> , #/p/<id>/edit , #/settings
+   Routing — #/ , #/all , #/new , #/p/<id> , #/p/<id>/edit ,
+             #/species , #/s/new , #/s/<id>/edit ,
+             #/catalog , #/c/<pageId> , #/settings
    ========================================================================= */
 
-const VIEWS = ['list', 'all', 'detail', 'edit', 'species', 'species-edit', 'settings'];
+const VIEWS = ['list', 'all', 'detail', 'edit', 'species', 'species-edit',
+               'catalog', 'catalog-detail', 'settings'];
 
 function route() {
   return (location.hash || '#/').slice(1);
@@ -691,6 +694,10 @@ function render() {
   if (path === '/new') return renderForm(null);
   if (path === '/species') return renderSpecies();
   if (path === '/s/new') return renderSpeciesForm(null);
+  if (path === '/catalog') return renderCatalog();
+
+  const entryMatch = path.match(/^\/c\/(\d+)$/);
+  if (entryMatch) return renderCatalogEntry(entryMatch[1]);
 
   const speciesEdit = path.match(/^\/s\/([^/]+)\/edit$/);
   if (speciesEdit) return renderSpeciesForm(speciesEdit[1]);
@@ -1448,6 +1455,248 @@ function renderSpeciesForm(id) {
   if (!record) setTimeout(() => $('#sp-name').focus(), 50);
 }
 
+/* =========================================================================
+   The reference catalogue
+
+   5,065 species mined from Wikipedia, sitting in data/plants.sqlite on the Pi.
+   It is searched there rather than held here: 4 MB of encyclopedia has no
+   business in localStorage, and unlike your own plants this is reference data
+   you never edit, so there is nothing to sync and nothing to lose by needing
+   the Pi to read it.
+
+   Entries come back shaped exactly like a plant or a species — same four
+   condition groups, same field names — so the formatting below is the code
+   that already draws your own records.
+   ========================================================================= */
+
+const CATALOG = new URL('api/catalog', document.baseURI).href;
+const CATALOG_WAIT = 250;        // ms of quiet before a typed name is searched
+
+/* Wikipedia describes light four ways where the app's own records know two,
+   so the catalogue does its own phrasing rather than bending LIGHT to fit. */
+const CATALOG_LIGHT = { direct: 'Direct sun', indirect: 'Indirect light',
+                        partial: 'Partial sun', shade: 'Shade' };
+
+function catalogLightText(entry) {
+  const kind = (entry.light && CATALOG_LIGHT[entry.light.kind]) || '';
+  const hours = figure(entry, 'light', 'hours');
+  const spell = hours === null ? '' : (hours === 1 ? '1 hour a day' : hours + ' hours a day');
+  return [kind, spell].filter(Boolean).join(', ');
+}
+
+function catalogError(status, message) {
+  const err = new Error(message);
+  err.status = status;
+  return err;
+}
+
+async function catalogRequest(suffix) {
+  const options = { cache: 'no-store', headers: { Accept: 'application/json' } };
+  if (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) {
+    options.signal = AbortSignal.timeout(TIMEOUT);
+  }
+
+  let res;
+  try {
+    res = await fetch(CATALOG + suffix, options);
+  } catch (e) {
+    throw catalogError(0, e.name === 'TimeoutError' ? 'the Pi did not answer'
+                                                    : 'no connection to the Pi');
+  }
+
+  if (!res.ok) {
+    let detail = '';
+    try {
+      detail = (await res.json()).error || '';
+    } catch (e) { /* not JSON */ }
+    throw catalogError(res.status, detail || ('the server returned ' + res.status));
+  }
+  return res.json();
+}
+
+/* ---------- searching ---------- */
+
+const catalogFilters = () => ({
+  q: $('#cat-q').value.trim(),
+  temp: $('#cat-temp').value.trim(),
+  ph: $('#cat-ph').value.trim(),
+  kind: $('#cat-kind').value,
+});
+
+let catalogTimer = null;
+let catalogRun = 0;              // replies from an older keystroke are dropped
+
+function queueCatalogSearch(wait) {
+  clearTimeout(catalogTimer);
+  catalogTimer = setTimeout(runCatalogSearch, wait);
+}
+
+async function runCatalogSearch() {
+  const filters = catalogFilters();
+  const params = new URLSearchParams();
+  for (const name of Object.keys(filters)) {
+    if (filters[name]) params.set(name, filters[name]);
+  }
+
+  const query = params.toString();
+  const mine = ++catalogRun;
+
+  let doc;
+  try {
+    doc = await catalogRequest(query ? '?' + query : '');
+  } catch (e) {
+    if (mine !== catalogRun) return;
+    return drawCatalogProblem(e);
+  }
+  if (mine !== catalogRun) return;      // a later search already answered
+  drawCatalog(doc, filters);
+}
+
+/**
+ * Why a filter found nothing, in the catalogue's own terms.
+ *
+ * Four entries in five record no temperature at all, and that is a fact about
+ * an encyclopedia rather than about the search — worth saying, or the tool
+ * looks broken every time it is asked something reasonable.
+ */
+function noMatchReason(doc, filters) {
+  const cover = doc.coverage || {};
+  const said = [];
+  if (filters.temp && cover.temp) said.push(cover.temp + ' record a temperature');
+  if (filters.ph && cover.ph) said.push(cover.ph + ' record a soil pH');
+  if (filters.kind && cover.light) said.push(cover.light + ' record the kind of light');
+  if (!said.length || !cover.total) return '';
+  return 'Of the ' + cover.total + ' entries, ' + said.join(' and ') + ' at all.';
+}
+
+function drawCatalog(doc, filters) {
+  const list = $('#cat-list');
+  list.textContent = '';
+  for (const entry of doc.results) list.appendChild(catalogRow(entry));
+
+  $('#cat-error').hidden = true;
+  $('#cat-error').textContent = '';
+
+  const shown = doc.results.length;
+  const count = $('#cat-count');
+  count.hidden = shown === 0;
+  count.textContent = doc.total === shown
+    ? doc.total + (doc.total === 1 ? ' entry' : ' entries')
+    : doc.total + ' entries · showing the first ' + shown;
+
+  const empty = $('#cat-empty');
+  empty.hidden = shown > 0;
+  if (!shown) {
+    empty.textContent = 'Nothing matches.';
+    const why = noMatchReason(doc, filters);
+    if (why) {
+      const line = document.createElement('span');
+      line.textContent = why;
+      empty.appendChild(document.createElement('br'));
+      empty.appendChild(line);
+    }
+  }
+}
+
+function drawCatalogProblem(err) {
+  $('#cat-list').textContent = '';
+  $('#cat-count').hidden = true;
+  $('#cat-count').textContent = '';
+
+  // A complaint about what was typed belongs under the boxes; anything else is
+  // about the Pi, and belongs where the results would have been.
+  const mistyped = err.status === 400;
+  $('#cat-error').hidden = !mistyped;
+  $('#cat-error').textContent = mistyped ? err.message : '';
+
+  const empty = $('#cat-empty');
+  empty.hidden = mistyped;
+  empty.textContent = mistyped ? '' : 'Cannot search the catalogue — ' + err.message + '.';
+}
+
+function catalogRow(entry) {
+  const li = document.createElement('li');
+
+  const a = document.createElement('a');
+  a.href = '#/c/' + encodeURIComponent(entry.pageId);
+
+  const text = document.createElement('div');
+  text.className = 'text';
+
+  const name = document.createElement('div');
+  name.className = 'name';
+  name.textContent = entry.title;
+  text.appendChild(name);
+
+  const ph = phText(entry);
+  const summary = [tempText(entry), ph && 'pH ' + ph, catalogLightText(entry),
+                   humidityText(entry)].filter(Boolean).join(' · ');
+
+  const sub = document.createElement('div');
+  sub.className = 'sub';
+  sub.textContent = summary || 'A name only — no figures recorded';
+  text.appendChild(sub);
+
+  a.appendChild(text);
+  li.appendChild(a);
+  return li;
+}
+
+function renderCatalog() {
+  // The boxes are left exactly as they were: coming back from an entry should
+  // land on the search that found it, not on a blank form.
+  queueCatalogSearch(0);
+  show('catalog', 'Catalogue', true);
+}
+
+/* ---------- one entry ---------- */
+
+async function renderCatalogEntry(pageId) {
+  show('catalog-detail', 'Catalogue', true);
+
+  const fields = ['#c-title', '#c-binomial', '#c-temp', '#c-humidity', '#c-ph',
+                  '#c-light', '#c-family', '#c-zone', '#c-notes', '#c-lead', '#c-meta'];
+  for (const sel of fields) $(sel).textContent = '';
+
+  const mine = ++catalogRun;
+  let entry;
+  try {
+    entry = await catalogRequest('/' + encodeURIComponent(pageId));
+  } catch (e) {
+    if (mine !== catalogRun) return;
+    $('#c-title').textContent = 'Cannot open this entry';
+    $('#c-binomial').textContent = e.message + '.';
+    return;
+  }
+  if (mine !== catalogRun) return;
+
+  $('#c-title').textContent = entry.title;
+  $('#c-binomial').textContent =
+    [entry.binomial !== entry.title ? entry.binomial : '', entry.genus]
+      .filter(Boolean).join(' · ');
+
+  fill($('#c-temp'), tempText(entry), 'Not recorded');
+  // A minimum read off a hardiness zone is a coarser figure than one an editor
+  // wrote in a sentence, and 453 of the entries have one.
+  const zoned = $('#c-temp-from');
+  zoned.hidden = !entry.fromZone;
+  zoned.textContent = entry.fromZone ? 'from a zone' : '';
+
+  fill($('#c-humidity'), humidityText(entry), 'Not recorded');
+  const ph = phText(entry);
+  fill($('#c-ph'), ph && 'pH ' + ph, 'Not recorded');
+  fill($('#c-light'), catalogLightText(entry), 'Not recorded');
+  fill($('#c-family'), entry.family, 'Not recorded');
+  fill($('#c-zone'), entry.zone && 'Zone ' + entry.zone, 'Not recorded');
+
+  fill($('#c-notes'), entry.notes, 'Nothing quotable in the article');
+  fill($('#c-lead'), entry.lead, 'No lead stored');
+  $('#c-meta').textContent = 'Wikipedia page ' + entry.pageId +
+    ' · known here as ' + (entry.aliases || []).join(', ');
+
+  $('#c-wiki').href = 'https://en.wikipedia.org/?curid=' + encodeURIComponent(entry.pageId);
+}
+
 /* ---------- settings ---------- */
 
 function renderSettings() {
@@ -1502,6 +1751,25 @@ for (const radio of schedRadios(SPECIES_SCHED)) {
 }
 
 $('#f-species').oninput = applySpeciesToForm;
+
+// The name is typed a letter at a time, so it waits for a pause; the other two
+// are picked or typed in one go and search at once.
+$('#cat-q').oninput = () => queueCatalogSearch(CATALOG_WAIT);
+$('#cat-temp').oninput = () => queueCatalogSearch(CATALOG_WAIT);
+$('#cat-ph').oninput = () => queueCatalogSearch(CATALOG_WAIT);
+$('#cat-kind').onchange = () => queueCatalogSearch(0);
+
+// Enter on a phone keyboard submits; there is nothing to submit, and letting
+// it through would reload the page and lose the whole search.
+$('#cat-form').onsubmit = (e) => {
+  e.preventDefault();
+  queueCatalogSearch(0);
+};
+
+$('#cat-clear').onclick = () => {
+  $('#cat-form').reset();
+  queueCatalogSearch(0);
+};
 
 $('#s-sync').onclick = () => sync();
 

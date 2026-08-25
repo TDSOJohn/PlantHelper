@@ -252,6 +252,109 @@
       conditions and the watering schedule shared by every plant of that kind.</span></p>
     <div class="row">
       <a class="btn primary" href="#/s/new">Add a species</a>
+      <a class="btn" href="#/catalog">Browse the catalogue</a>
+    </div>
+  </section>
+
+  <!-- ---------- the reference catalogue ----------
+       Read-only, and the one part of the app that needs the Pi: the 5,065
+       entries live in data/plants.sqlite and are searched there, not held on
+       the phone. -->
+  <section id="view-catalog" class="view" hidden>
+    <form id="cat-form" class="form" novalidate>
+      <label for="cat-q">Name</label>
+      <input id="cat-q" type="search" maxlength="80" autocomplete="off"
+             autocapitalize="none" autocorrect="off" spellcheck="false"
+             placeholder="monstera">
+
+      <fieldset class="group">
+        <legend>Conditions it has to meet</legend>
+        <div class="inline">
+          <span>Survives down to</span>
+          <input id="cat-temp" type="text" inputmode="decimal" maxlength="6"
+                 autocomplete="off" aria-label="Coldest it must survive, °C">
+          <span>°C</span>
+        </div>
+        <div class="inline">
+          <span>Soil pH</span>
+          <input id="cat-ph" type="text" inputmode="decimal" maxlength="5"
+                 autocomplete="off" aria-label="Soil pH its range must include">
+        </div>
+        <div class="inline">
+          <span>Light</span>
+          <select id="cat-kind" aria-label="Kind of light">
+            <option value="">Any</option>
+            <option value="direct">Direct sun</option>
+            <option value="indirect">Indirect light</option>
+            <option value="partial">Partial sun</option>
+            <option value="shade">Shade</option>
+          </select>
+        </div>
+        <p class="hint">Temperature matches an entry whose recorded minimum is at
+          or below it, because 789 entries say how cold a plant takes and only 63
+          say how hot. pH matches a recorded range that covers the figure.
+          Either way an entry that records nothing matches nothing, and most
+          record nothing.</p>
+        <p id="cat-error" class="hint error" hidden></p>
+      </fieldset>
+
+      <div class="row">
+        <button id="cat-clear" class="btn" type="button">Clear</button>
+      </div>
+    </form>
+
+    <p id="cat-count" class="hint" hidden></p>
+    <ul id="cat-list" class="list"></ul>
+    <p id="cat-empty" class="empty" hidden></p>
+  </section>
+
+  <!-- ---------- one catalogue entry ---------- -->
+  <section id="view-catalog-detail" class="view" hidden>
+    <div class="detail">
+      <h2 id="c-title"></h2>
+      <p id="c-binomial" class="meta"></p>
+
+      <div class="facts">
+        <div class="fact">
+          <span class="key">Temperature</span>
+          <span class="val" id="c-temp"></span>
+          <span class="from" id="c-temp-from"></span>
+        </div>
+        <div class="fact">
+          <span class="key">Humidity</span>
+          <span class="val" id="c-humidity"></span>
+        </div>
+        <div class="fact">
+          <span class="key">Soil pH</span>
+          <span class="val" id="c-ph"></span>
+        </div>
+        <div class="fact">
+          <span class="key">Light</span>
+          <span class="val" id="c-light"></span>
+        </div>
+        <div class="fact">
+          <span class="key">Family</span>
+          <span class="val" id="c-family"></span>
+        </div>
+        <div class="fact">
+          <span class="key">Hardiness</span>
+          <span class="val" id="c-zone"></span>
+        </div>
+      </div>
+
+      <div class="field">
+        <span class="label">What the article says</span>
+        <p id="c-notes" class="value"></p>
+      </div>
+      <div class="field">
+        <span class="label">Lead</span>
+        <p id="c-lead" class="value"></p>
+      </div>
+      <p id="c-meta" class="meta"></p>
+
+      <div class="row">
+        <a id="c-wiki" class="btn" href="#" target="_blank" rel="noopener noreferrer">Open on Wikipedia</a>
+      </div>
     </div>
   </section>
 

@@ -115,6 +115,71 @@ referencing a species another phone has not seen yet. That dangling reference
 is a normal intermediate state, and the app treats it as one — the plant simply
 falls back to its own figures until the species arrives.
 
+There *is* a SQLite file on the Pi, and it is the exception that shows the
+rule: the [catalogue](#catalogue) below is 5,065 rows nobody edits, rebuilt
+from scratch whenever the Wikipedia dump is re-mined, and never syncs anywhere.
+Every argument above turns on your plants being small, precious and offline.
+None of the three is true of an encyclopedia.
+
+## Catalogue
+
+`data/plants.sqlite` holds 5,065 species mined from the English Wikipedia dump
+by [../plants_db](../plants_db) — the same four condition groups this app uses
+and nothing else. **Species → Browse the catalogue** searches it.
+
+It is the one part of the app that needs the Pi. Your plants are held in the
+browser and work offline; 4 MB of encyclopedia has no business in
+`localStorage`, so the catalogue is queried on the server and the view says so
+plainly when it cannot be reached.
+
+### What you can search by
+
+| | |
+|---|---|
+| **name** | any title or binomial containing what you type; an exact name sorts first |
+| **survives down to** | entries whose recorded minimum is at or below that temperature |
+| **soil pH** | entries whose recorded range covers that figure |
+| **light** | direct sun, indirect light, partial sun, or shade |
+
+The two figures deliberately mean different things, because the data does.
+Temperature is asked as a floor: 789 entries record how cold a plant takes and
+**63** record how hot, so asking it as a range makes "survives 45 °C" match 738
+of them — every plant whose ceiling nobody happened to write down. That is a
+count of what the encyclopedia is missing, dressed up as an answer. pH is asked
+as a range, because 192 of the 234 entries that record one record both ends.
+
+There is no humidity or hours-of-light filter: 26 and 36 entries record them.
+Both are implemented on the server, so adding either is a line of HTML if that
+ever changes.
+
+An entry that records nothing matches nothing — a search cannot honestly return
+"we don't know" as a yes. Most entries record nothing, so when a filter finds
+little the view says how much of the catalogue could have answered at all.
+
+### Reading the results with the right suspicion
+
+This is a **seed**, not a care sheet. 1,799 of the 5,065 entries carry any
+figure at all, 2,308 carry prose worth keeping, and 2,309 carry neither and are
+names only.
+
+One label on the entry page is there to be distrusted: **from a zone** means
+the minimum was read off a hardiness zone rather than a sentence an editor
+wrote. 453 entries have one and they dominate any cold search — *Angelica
+glauca* comes out surviving −34.4 °C from zone 4–7 while its own prose says it
+is happy at 10–15 °C.
+
+**Lead** is shown exactly as stored, unedited. That is deliberate: this is a
+view onto the file, so anything wrong with the file should be visible here
+rather than tidied up on the way past. (Earlier builds leaked taxobox tails —
+`| image = … | genus = …` — into about a third of the leads. `plants_db` fixed
+that at the source, which is where such a fix belongs.)
+
+Nothing in the catalogue is copied into your own records automatically, and the
+app never writes to the file. Seeding a species from an entry would be the
+natural next step; it should **copy** the figures rather than link to them, so
+that re-mining a newer dump can never silently change the care figures of a
+plant you own.
+
 ## Watering schedules
 
 A plant can have one of two schedules, or none at all:
@@ -262,6 +327,9 @@ tokens, no CORS, no cloud account.
     DELETE /api/photo/<id>
     GET    /photos/<id>.jpg
 
+    GET    /api/catalog?q=&temp=&ph=&kind=   ->  the reference catalogue
+    GET    /api/catalog/<pageId>             ->  one entry in full
+
 A `PUT` is **merged** with what is already on disk rather than replacing it —
 union by id, most recently updated copy wins, deletes are tombstones. Species
 and plants are two lists of the same shape and go through the same merge; a
@@ -273,6 +341,11 @@ The browser keeps a copy in `localStorage`. That is only a cache: it lets the
 app keep working while the Pi reboots or Wi-Fi drops, and any edit made
 meanwhile is flagged and pushed on the next sync (on launch, when the tab
 becomes visible, or when the network returns).
+
+The two catalogue routes are the exception to all of the above: read-only,
+never cached on the phone, and answered straight from `data/plants.sqlite`,
+which is opened `mode=ro` and never written by this process. `/data` is not
+served as a static directory, so the 4 MB file cannot be fetched whole.
 
 ## Deploying on a headless Pi Zero 2 W
 
@@ -305,6 +378,31 @@ APP_DIR=/opt/plants DATA_DIR=/var/lib/plants PORT=80 sudo -E ./install.sh
 
 Re-running it updates the app and restarts the service; it never touches the
 data directory.
+
+The catalogue is not part of that, because it is not part of the app and it is
+too big to keep in git. Copy it across once, and again whenever you re-mine the
+dump:
+
+```sh
+scp plants.sqlite plants.local:/tmp/
+ssh -t plants.local 'set -e
+  sudo install -o plants -g plants -m 640 /tmp/plants.sqlite /var/lib/plants/plants.sqlite.new
+  sudo mv /var/lib/plants/plants.sqlite.new /var/lib/plants/plants.sqlite
+  rm /tmp/plants.sqlite
+  sudo systemctl restart plants'
+```
+
+Staging in `/tmp` and moving into place is not ceremony. Written straight over,
+the file is briefly truncated, and a search landing in that window gets *"Cannot
+read the catalogue"* — one request in 400 in a crude test, which is rare enough
+to be baffling rather than obviously your own fault. A rename is atomic, so a
+reader sees either the whole old file or the whole new one. `-t` is there so
+`sudo` can still ask for a password.
+
+The restart is not decoration either. Searches open the file fresh every time
+and so pick up a replacement immediately, but the coverage counts behind the
+*"of the 5,065 entries, 234 record a soil pH"* line are read once and kept for
+the life of the process.
 
 ### 3. Open it
 
@@ -388,6 +486,10 @@ Three layers, in increasing order of effort:
   species existed. Photos are not included — they are files, not JSON.
 - Copy the whole data directory off the Pi periodically, photos and all:
   `rsync -a plants.local:/var/lib/plants/ ~/backups/plants/`
+
+`plants.sqlite` needs none of this. It is not backed up, not snapshotted and
+not exported, because it is derived data: `plants_db` rebuilds it from the dump.
+Losing it costs an afternoon of CPU, not a plant.
 
 Writes are atomic — temp file, `fsync`, rename — so a power cut leaves either
 the old file or the new one, never a truncated one. That matters more than
@@ -480,3 +582,12 @@ python3 server.py --port 8080 --data ./data/plants.json
 ```
 
 then open <http://localhost:8080>. There is nothing to build.
+
+The catalogue is looked for next to the data file, so dropping
+`plants.sqlite` into `./data/` is all it takes; `--catalog` points elsewhere.
+Without it everything still runs and the catalogue view says it is not
+installed. The startup line tells you which you have:
+
+```
+plants: catalogue /home/…/data/plants.sqlite (ready)
+```
