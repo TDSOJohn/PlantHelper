@@ -30,18 +30,8 @@ html { -webkit-text-size-adjust: 100%; }
 
 body {
   margin: 0;
-  /* A flex column, so the tab bar can be the last thing *in* the page rather
-     than something floating over it. `main` takes the slack, which keeps the
-     bar at the bottom of the screen even when there is too little content to
-     push it there.
-
-     iOS reads 100vh as the height with the toolbars hidden — taller than what
-     you can actually see. That is the wrong answer nearly everywhere else and
-     the right one here: the page always reaches at least the bottom of the
-     visible area, so the sticky bar below always has somewhere to stick. */
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
+  /* room for the fixed tab bar */
+  padding: 0 0 calc(env(safe-area-inset-bottom) + 62px);
   background: var(--bg);
   color: var(--ink);
   font: 17px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -50,30 +40,23 @@ body {
 
 /* ---------- tab bar ----------
 
-   Sticky rather than fixed, for the same reason .topbar is. A fixed element is
-   positioned against the layout viewport and painted outside the scrolling
-   content, so on iOS it drifts during a momentum scroll and is only put back
-   when scrolling stops — visible as a bar that slides about, and much worse
-   once the keyboard has left the two viewports out of step. A sticky element
-   is part of the scrolling content and stays where it belongs throughout.
-
-   It is the last item in the body flex column, so its natural place is already
-   the bottom of the page; `bottom: 0` only matters while there is content
-   below it still to scroll. */
+   On iOS this drifts a little during a momentum scroll, and more so once the
+   software keyboard has been up, because a fixed element is painted outside
+   the scrolling content and only put back when scrolling stops. Sticky
+   positioning in a flex column, and hiding the bar while the keyboard was up,
+   were both tried and neither fixed it. Left plain rather than carrying a
+   workaround that does not work. */
 .tabs {
-  position: sticky;
-  bottom: 0;
+  position: fixed;
   z-index: 20;
-  flex: none;
+  left: 0;
+  right: 0;
+  bottom: 0;
   display: flex;
   padding-bottom: env(safe-area-inset-bottom);
   background: var(--bg);
   border-top: 1px solid var(--line);
 }
-
-/* Out of the way while the software keyboard is up. `hidden` would not do it:
-   the `display: flex` above outranks the browser's own `[hidden]` rule. */
-.tabs.away { display: none; }
 
 .tab {
   flex: 1;
@@ -152,9 +135,7 @@ body {
 .status.error { color: var(--danger); }
 
 /* ---------- views ---------- */
-/* Takes up the slack in the body column, which is what holds the tab bar down
-   on a page with only one plant on it. */
-main { flex: 1 0 auto; width: 100%; max-width: 720px; margin: 0 auto; }
+main { max-width: 720px; margin: 0 auto; }
 .view { padding: var(--pad); }
 
 /* ---------- lists ---------- */
