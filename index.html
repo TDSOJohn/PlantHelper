@@ -209,7 +209,7 @@
         <div id="sched-interval" hidden>
           <div class="inline">
             <span>Water every</span>
-            <input id="f-days" type="number" min="1" max="365" step="1"
+            <input id="f-days" placeholder="7" type="number" min="1" max="365" step="1"
                    inputmode="numeric" value="7">
             <span>days, starting today</span>
           </div>
@@ -272,13 +272,13 @@
         <div class="inline">
           <span>Survives down to</span>
           <input id="cat-temp" type="text" inputmode="decimal" maxlength="6"
-                 autocomplete="off" aria-label="Coldest it must survive, °C">
+                 autocomplete="off" placeholder="-5" aria-label="Coldest it must survive, °C">
           <span>°C</span>
         </div>
         <div class="inline">
           <span>Soil pH</span>
           <input id="cat-ph" type="text" inputmode="decimal" maxlength="5"
-                 autocomplete="off" aria-label="Soil pH its range must include">
+                 autocomplete="off" placeholder="6.5" aria-label="Soil pH its range must include">
         </div>
         <div class="inline">
           <span>Light</span>
@@ -441,7 +441,7 @@
         <div id="sp-sched-interval" hidden>
           <div class="inline">
             <span>Water every</span>
-            <input id="sp-days" type="number" min="1" max="365" step="1"
+            <input id="sp-days" placeholder="7" type="number" min="1" max="365" step="1"
                    inputmode="numeric" value="7">
             <span>days</span>
           </div>

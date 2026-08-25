@@ -180,27 +180,41 @@ natural next step; it should **copy** the figures rather than link to them, so
 that re-mining a newer dump can never silently change the care figures of a
 plant you own.
 
-## The tab bar and the keyboard
+## The tab bar
 
-The tab bar takes itself away while the software keyboard is up, and comes back
+The bar is `position: sticky`, not `position: fixed`, and so is the title bar
+above it. That is the whole reason it stays put.
+
+A fixed element is positioned against the layout viewport and painted outside
+the scrolling content, which on iOS means it drifts during a momentum scroll
+and is only put back once scrolling stops — a bar that visibly slides about.
+A sticky element is part of the scrolling content and stays where it belongs
+throughout. So the bar is the last item in a flex column, `main` takes up the
+slack that holds it down on a page with one plant on it, and `bottom: 0` only
+matters while there is still content below to scroll past.
+
+`min-height: 100vh` on the body is what gives it something to stick to. iOS
+reads `100vh` as the height with the toolbars hidden — taller than what you can
+actually see, which is the wrong answer nearly everywhere else and the right
+one here.
+
+### And the keyboard
+
+The bar takes itself away while the software keyboard is up, and comes back
 when it goes down. Partly because there is nothing there to tap mid-sentence
-and a phone screen is small, but mainly because of what iOS does with viewports.
+and a phone screen is small, but mostly because iOS shrinks the *visual*
+viewport to fit the keyboard while leaving the *layout* viewport at full
+height, and does not reliably put the two back in step afterwards. If the bar
+is not on screen, there is nothing sitting in the wrong place to correct.
 
-The keyboard shrinks the **visual** viewport — what you can see — and leaves
-the **layout** viewport, which is what `position: fixed` is measured against,
-at full height. That much is expected. What is not is that dismissing the
-keyboard does not reliably put the two back in step: the bar ends up stranded
-a keyboard's height above the bottom of the screen, sliding about on every
-scroll because iOS repaints fixed elements only once scrolling stops.
+Coming back, it also nudges the scroller, which makes iOS re-measure the two
+viewports against each other. Sticky positioning ought to have made that
+unnecessary; it is three lines and it is kept as insurance. The nudge happens
+only on the way out — doing it on the way in would drag the field being typed
+into out from under the cursor.
 
-Removing the bar means there is nothing left stranded. Putting it back forces a
-fresh layout and nudges the scroller, which is what actually gets the two
-viewports measured against each other again — restoring it alone leaves it
-wherever iOS last painted it. The nudge happens only on the way out; doing it
-on the way in would drag the field being typed into out from under the cursor.
-
-All of it sits behind a `window.visualViewport` check, so a browser without one
-keeps the plain fixed bar it always had.
+All of the JavaScript half is behind a `window.visualViewport` check, so a
+browser without one keeps a tab bar that simply never moves.
 
 ## Watering schedules
 

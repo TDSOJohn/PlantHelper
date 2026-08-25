@@ -1845,21 +1845,24 @@ $('#s-forget').onclick = () => {
 
 /* The software keyboard and the tab bar.
 
-   iOS shrinks the *visual* viewport to make room for the keyboard but leaves
-   the *layout* viewport — the one `position: fixed` is measured against — at
-   full height. Dismissing the keyboard does not reliably put the two back in
-   step, and the bar is left stranded a keyboard's height above the bottom,
-   juddering on every scroll because iOS repaints fixed elements only once
-   scrolling stops.
+   The bar staying put while you scroll is the stylesheet's job, not this one's:
+   it is `position: sticky`, which rides along with the scrolling content
+   instead of being painted over it. What is left here is the keyboard.
 
+   iOS shrinks the *visual* viewport to make room for one but leaves the
+   *layout* viewport at full height, so the bar ends up behind the keyboard,
+   and dismissing it does not reliably put the two viewports back in step.
    Taking the bar away while typing is worth doing for its own sake — there is
    nothing there to tap mid-sentence, and a phone needs the room — and it also
-   means there is nothing left stranded to correct. Putting it back forces a
-   fresh layout and nudges the scroller, which is what actually gets iOS to
-   measure the two viewports against each other again.
+   means there is nothing sitting in the wrong place to correct afterwards.
 
-   All of this is behind a `visualViewport` check, so a browser without one
-   keeps the plain fixed bar it always had. */
+   The scroll nudge on the way back is insurance: it costs nothing and makes
+   iOS re-measure the two viewports. Sticky positioning should have made it
+   unnecessary, but "should" is doing real work in that sentence and this is
+   three lines.
+
+   All of it is behind a `visualViewport` check, so a browser without one keeps
+   a tab bar that simply never moves. */
 const viewport = window.visualViewport;
 if (viewport) {
   const tabs = $('.tabs');
