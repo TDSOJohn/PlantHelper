@@ -281,6 +281,12 @@
                  autocomplete="off" placeholder="6.5" aria-label="Soil pH its range must include">
         </div>
         <div class="inline">
+          <span>No taller than</span>
+          <input id="cat-height" type="text" inputmode="decimal" maxlength="6"
+                 autocomplete="off" placeholder="60" aria-label="Tallest it may grow, cm">
+          <span>cm</span>
+        </div>
+        <div class="inline">
           <span>Light</span>
           <select id="cat-kind" aria-label="Kind of light">
             <option value="">Any</option>
@@ -290,11 +296,17 @@
             <option value="shade">Shade</option>
           </select>
         </div>
-        <p class="hint">Temperature matches an entry whose recorded minimum is at
-          or below it, because 789 entries say how cold a plant takes and only 63
-          say how hot. pH matches a recorded range that covers the figure.
-          Either way an entry that records nothing matches nothing, and most
-          record nothing.</p>
+        <div class="checks">
+          <label><input id="cat-edible" type="checkbox"> Edible</label>
+          <label><input id="cat-otherUses" type="checkbox"> Other uses</label>
+          <label><input id="cat-aquatic" type="checkbox"> Aquatic</label>
+        </div>
+        <p class="hint">Temperature and height match a recorded figure at or below
+          what you type — the coldest an entry is known to take, the tallest it is
+          known to get. pH matches a recorded range that covers the figure. The
+          three marks come from what the article says, so unticked means it went
+          unmentioned rather than that the answer is no. An entry that records
+          nothing matches nothing, and most record nothing.</p>
         <p id="cat-error" class="hint error" hidden></p>
       </fieldset>
 
@@ -333,6 +345,10 @@
           <span class="val" id="c-light"></span>
         </div>
         <div class="fact">
+          <span class="key">Height</span>
+          <span class="val" id="c-height"></span>
+        </div>
+        <div class="fact">
           <span class="key">Family</span>
           <span class="val" id="c-family"></span>
         </div>
@@ -342,6 +358,11 @@
         </div>
       </div>
 
+      <div class="field">
+        <span class="label">Uses</span>
+        <p id="c-flags" class="flags"></p>
+        <p id="c-uses" class="value"></p>
+      </div>
       <div class="field">
         <span class="label">What the article says</span>
         <p id="c-notes" class="value"></p>

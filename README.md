@@ -124,8 +124,9 @@ None of the three is true of an encyclopedia.
 ## Catalogue
 
 `data/plants.sqlite` holds 5,065 species mined from the English Wikipedia dump
-by [../plants_db](../plants_db) — the same four condition groups this app uses
-and nothing else. **Species → Browse the catalogue** searches it.
+by [../plants_db](../plants_db) — the four condition groups this app uses, plus
+a height and three yes-or-nothing marks that only make sense on a catalogue.
+**Species → Browse the catalogue** searches it.
 
 It is the one part of the app that needs the Pi. Your plants are held in the
 browser and work offline; 4 MB of encyclopedia has no business in
@@ -139,16 +140,38 @@ plainly when it cannot be reached.
 | **name** | any title or binomial containing what you type; an exact name sorts first |
 | **survives down to** | entries whose recorded minimum is at or below that temperature |
 | **soil pH** | entries whose recorded range covers that figure |
+| **no taller than** | entries whose recorded height stops at or below that many centimetres |
 | **light** | direct sun, indirect light, partial sun, or shade |
+| **edible · other uses · aquatic** | entries the article marks as such |
 
-The two figures deliberately mean different things, because the data does.
-Temperature is asked as a floor: 789 entries record how cold a plant takes and
-**63** record how hot, so asking it as a range makes "survives 45 °C" match 738
-of them — every plant whose ceiling nobody happened to write down. That is a
-count of what the encyclopedia is missing, dressed up as an answer. pH is asked
-as a range, because 192 of the 234 entries that record one record both ends.
+The three figures deliberately mean three different things, because the data
+does.
 
-There is no humidity or hours-of-light filter: 26 and 36 entries record them.
+**Temperature** is asked as a floor: 789 entries record how cold a plant takes
+and **63** record how hot, so asking it as a range makes "survives 45 °C" match
+738 of them — every plant whose ceiling nobody happened to write down. That is
+a count of what the encyclopedia is missing, dressed up as an answer.
+
+**pH** is asked as a range, because 194 of the 235 entries that record one
+record both ends.
+
+**Height** is asked as a ceiling: the tallest figure recorded, which is the top
+of the range where the article gave one and the single figure otherwise —
+"growing to 2 m tall" is stored as a minimum with no maximum. Here nothing is
+missing. 901 entries give a range, 1,354 a single figure and none a maximum
+alone, so unlike temperature this one *could* have been a range. It is not,
+because the question a windowsill asks is **what stays under 60 cm**, not what
+is between two heights.
+
+The three marks are yes-or-nothing rather than yes-or-no. They are set from
+what an article commits to, so a 0 means nobody wrote it down — which is why an
+unticked box asks nothing at all rather than asking for the plants that are
+*not* edible. 1,116 entries are marked edible, 1,167 for some other use
+(medicine, oil, dye, fibre — not timber or "ornamental", which are true of most
+of the table and so separate none of it), and 121 as aquatic. They combine:
+edible **and** aquatic is 22 rows, and one of them is a water chestnut.
+
+There is no humidity or hours-of-light filter: 22 and 36 entries record them.
 Both are implemented on the server, so adding either is a line of HTML if that
 ever changes.
 
@@ -158,15 +181,22 @@ little the view says how much of the catalogue could have answered at all.
 
 ### Reading the results with the right suspicion
 
-This is a **seed**, not a care sheet. 1,799 of the 5,065 entries carry any
-figure at all, 2,308 carry prose worth keeping, and 2,309 carry neither and are
-names only.
+This is a **seed**, not a care sheet. Of the 5,065 entries, 3,078 carry a
+figure of some kind, 1,758 carry at least one mark, 2,308 carry prose worth
+keeping — and 1,073 carry none of the three and are names only.
 
 One label on the entry page is there to be distrusted: **from a zone** means
 the minimum was read off a hardiness zone rather than a sentence an editor
 wrote. 453 entries have one and they dominate any cold search — *Angelica
 glauca* comes out surviving −34.4 °C from zone 4–7 while its own prose says it
 is happy at 10–15 °C.
+
+The **Uses** paragraph is not always a recipe. 30 entries carry one with
+neither mark set, because what the article had to say was a warning — peace
+lily, sago palm and winter aconite are all in there — and those are shown
+anyway: a houseplant app has more use for *all parts of the plant are
+poisonous* than for silence. The reverse happens too: 169 entries carry a mark
+with no sentence worth quoting, and show the mark alone.
 
 **Lead** is shown exactly as stored, unedited. That is deliberate: this is a
 view onto the file, so anything wrong with the file should be visible here
@@ -327,8 +357,9 @@ tokens, no CORS, no cloud account.
     DELETE /api/photo/<id>
     GET    /photos/<id>.jpg
 
-    GET    /api/catalog?q=&temp=&ph=&kind=   ->  the reference catalogue
-    GET    /api/catalog/<pageId>             ->  one entry in full
+    GET    /api/catalog?q=&temp=&ph=&height=&kind=
+                  &edible=&aquatic=&otherUses=  ->  the reference catalogue
+    GET    /api/catalog/<pageId>                ->  one entry in full
 
 A `PUT` is **merged** with what is already on disk rather than replacing it —
 union by id, most recently updated copy wins, deletes are tombstones. Species
@@ -395,7 +426,7 @@ rare enough to be baffling rather than obviously self-inflicted.
 
 The restart at the end of `install.sh` matters for the same reason a fresh
 search does not: searches open the file every time and pick up a replacement at
-once, but the coverage counts behind the *"of the 5,065 entries, 234 record a
+once, but the coverage counts behind the *"of the 5,065 entries, 235 record a
 soil pH"* line are read once and kept for the life of the process.
 
 Keeping a 3.9 MB binary in git costs a new copy in history every time the dump

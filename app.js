@@ -683,6 +683,11 @@ function replaceRoute(hash) {
 function refresh() {
   const path = route();
   if (path === '/new' || path === '/s/new' || /\/edit$/.test(path)) return;
+  // The catalogue is not made of plants. Nothing a sync brings back can change
+  // what is on screen there, and re-rendering it would re-run the search over
+  // the network: a second round trip for the same answer, landing under
+  // whatever was being read at the time.
+  if (path === '/catalog' || /^\/c\/\d+$/.test(path)) return;
   render();
 }
 
@@ -1477,6 +1482,45 @@ const CATALOG_WAIT = 250;        // ms of quiet before a typed name is searched
 const CATALOG_LIGHT = { direct: 'Direct sun', indirect: 'Indirect light',
                         partial: 'Partial sun', shade: 'Shade' };
 
+/* Marks rather than figures: a set flag means the article commits to it, and
+   an unset one means nobody wrote it down. Keyed by the field the server
+   sends, so this list is also what the three tick boxes are wired from. */
+const CATALOG_MARKS = { edible: 'Edible', otherUses: 'Other uses',
+                        aquatic: 'Aquatic' };
+
+const catalogMarks = (entry) =>
+  Object.keys(CATALOG_MARKS).filter((name) => entry[name]).map((n) => CATALOG_MARKS[n]);
+
+/** Draws an entry's marks into `node`, replacing whatever was there. */
+function fillMarks(node, entry) {
+  const marks = catalogMarks(entry);
+  node.textContent = '';
+  for (const label of marks) {
+    const pill = document.createElement('span');
+    pill.className = 'flag';
+    pill.textContent = label;
+    node.appendChild(pill);
+  }
+  return marks;
+}
+
+/* Centimetres in the record, metres once that stops being readable. A single
+   figure is what the article gave — "growing to 2 m tall" is stored as a
+   minimum with no maximum — so it reads as a ceiling rather than as the
+   bottom of a range it never had. */
+function heightText(entry) {
+  const low = figure(entry, 'height', 'min');
+  const high = figure(entry, 'height', 'max');
+  const tall = high === null ? low : high;
+  if (tall === null) return '';
+
+  const unit = tall >= 100 ? ' m' : ' cm';
+  const say = (cm) => (tall >= 100 ? Number((cm / 100).toFixed(1)) : cm);
+
+  if (low === null || high === null) return 'To ' + say(tall) + unit;
+  return say(low) + '–' + say(high) + unit;
+}
+
 function catalogLightText(entry) {
   const kind = (entry.light && CATALOG_LIGHT[entry.light.kind]) || '';
   const hours = figure(entry, 'light', 'hours');
@@ -1516,12 +1560,21 @@ async function catalogRequest(suffix) {
 
 /* ---------- searching ---------- */
 
-const catalogFilters = () => ({
-  q: $('#cat-q').value.trim(),
-  temp: $('#cat-temp').value.trim(),
-  ph: $('#cat-ph').value.trim(),
-  kind: $('#cat-kind').value,
-});
+const catalogFilters = () => {
+  const filters = {
+    q: $('#cat-q').value.trim(),
+    temp: $('#cat-temp').value.trim(),
+    ph: $('#cat-ph').value.trim(),
+    height: $('#cat-height').value.trim(),
+    kind: $('#cat-kind').value,
+  };
+  // '1' rather than true, because these go straight into the query string and
+  // the server is strict about what a flag is allowed to say.
+  for (const name of Object.keys(CATALOG_MARKS)) {
+    filters[name] = $('#cat-' + name).checked ? '1' : '';
+  }
+  return filters;
+};
 
 let catalogTimer = null;
 let catalogRun = 0;              // replies from an older keystroke are dropped
@@ -1562,11 +1615,20 @@ async function runCatalogSearch() {
 function noMatchReason(doc, filters) {
   const cover = doc.coverage || {};
   const said = [];
-  if (filters.temp && cover.temp) said.push(cover.temp + ' record a temperature');
-  if (filters.ph && cover.ph) said.push(cover.ph + ' record a soil pH');
-  if (filters.kind && cover.light) said.push(cover.light + ' record the kind of light');
+  const note = (asked, n, what) => { if (asked && n) said.push('only ' + n + ' ' + what); };
+
+  note(filters.temp, cover.temp, 'record a temperature');
+  note(filters.ph, cover.ph, 'record a soil pH');
+  note(filters.height, cover.height, 'record a height');
+  note(filters.kind, cover.light, 'record the kind of light');
+  for (const name of Object.keys(CATALOG_MARKS)) {
+    note(filters[name], cover[name], 'are marked ' + CATALOG_MARKS[name].toLowerCase());
+  }
+
   if (!said.length || !cover.total) return '';
-  return 'Of the ' + cover.total + ' entries, ' + said.join(' and ') + ' at all.';
+  const last = said.pop();
+  const list = said.length ? said.join(', ') + ' and ' + last : last;
+  return 'Of the ' + cover.total + ' entries, ' + list + '.';
 }
 
 function drawCatalog(doc, filters) {
@@ -1629,13 +1691,26 @@ function catalogRow(entry) {
   text.appendChild(name);
 
   const ph = phText(entry);
-  const summary = [tempText(entry), ph && 'pH ' + ph, catalogLightText(entry),
-                   humidityText(entry)].filter(Boolean).join(' · ');
+  // Height leads: the line is one truncated row and a plant that records its
+  // temperature band, its limits and its light fills that on a phone before
+  // it gets to the end. Of the facts here it is the shortest and the one you
+  // can act on without reading the rest — it either fits the shelf or it does
+  // not — so it is the one that has to survive the ellipsis.
+  const summary = [heightText(entry), tempText(entry), ph && 'pH ' + ph,
+                   catalogLightText(entry), humidityText(entry)]
+                  .filter(Boolean).join(' · ');
+
+  const row = document.createElement('div');
+  row.className = 'flags';
+  const marks = fillMarks(row, entry);
 
   const sub = document.createElement('div');
   sub.className = 'sub';
-  sub.textContent = summary || 'A name only — no figures recorded';
+  // "A name only" would be a lie on a row that is carrying a mark or two.
+  sub.textContent = summary ||
+    (marks.length ? '' : 'A name only — no figures recorded');
   text.appendChild(sub);
+  if (marks.length) text.appendChild(row);
 
   a.appendChild(text);
   li.appendChild(a);
@@ -1655,7 +1730,8 @@ async function renderCatalogEntry(pageId) {
   show('catalog-detail', 'Catalogue', true);
 
   const fields = ['#c-title', '#c-binomial', '#c-temp', '#c-humidity', '#c-ph',
-                  '#c-light', '#c-family', '#c-zone', '#c-notes', '#c-lead', '#c-meta'];
+                  '#c-light', '#c-height', '#c-family', '#c-zone', '#c-flags',
+                  '#c-uses', '#c-notes', '#c-lead', '#c-meta'];
   for (const sel of fields) $(sel).textContent = '';
 
   const mine = ++catalogRun;
@@ -1686,8 +1762,18 @@ async function renderCatalogEntry(pageId) {
   const ph = phText(entry);
   fill($('#c-ph'), ph && 'pH ' + ph, 'Not recorded');
   fill($('#c-light'), catalogLightText(entry), 'Not recorded');
+  fill($('#c-height'), heightText(entry), 'Not recorded');
   fill($('#c-family'), entry.family, 'Not recorded');
   fill($('#c-zone'), entry.zone && 'Zone ' + entry.zone, 'Not recorded');
+
+  // The paragraph is not always a recipe: 30 entries carry one with neither
+  // flag set, because what the article had to say was a warning. Those are
+  // worth reading more than the rest, so an unmarked entry still shows it.
+  const marks = fillMarks($('#c-flags'), entry);
+  $('#c-flags').hidden = !marks.length;
+  const uses = $('#c-uses');
+  uses.hidden = !entry.uses && marks.length > 0;
+  fill(uses, entry.uses, 'Nothing recorded');
 
   fill($('#c-notes'), entry.notes, 'Nothing quotable in the article');
   fill($('#c-lead'), entry.lead, 'No lead stored');
@@ -1752,12 +1838,16 @@ for (const radio of schedRadios(SPECIES_SCHED)) {
 
 $('#f-species').oninput = applySpeciesToForm;
 
-// The name is typed a letter at a time, so it waits for a pause; the other two
-// are picked or typed in one go and search at once.
+// Anything typed arrives a character at a time, and a lone "-" is not a
+// temperature, so it waits for a pause. Anything picked searches at once.
 $('#cat-q').oninput = () => queueCatalogSearch(CATALOG_WAIT);
 $('#cat-temp').oninput = () => queueCatalogSearch(CATALOG_WAIT);
 $('#cat-ph').oninput = () => queueCatalogSearch(CATALOG_WAIT);
+$('#cat-height').oninput = () => queueCatalogSearch(CATALOG_WAIT);
 $('#cat-kind').onchange = () => queueCatalogSearch(0);
+for (const name of Object.keys(CATALOG_MARKS)) {
+  $('#cat-' + name).onchange = () => queueCatalogSearch(0);
+}
 
 // Enter on a phone keyboard submits; there is nothing to submit, and letting
 // it through would reload the page and lose the whole search.

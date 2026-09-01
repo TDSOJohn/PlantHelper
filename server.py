@@ -10,7 +10,8 @@ Serves the static page, one JSON endpoint and the plant photos:
     PUT    /api/photo/<id>    <-  raw JPEG bytes (the browser resizes to 512x512)
     DELETE /api/photo/<id>
     GET    /photos/<id>.jpg
-    GET    /api/catalog?q=&temp=&ph=&kind=  ->  the reference catalogue
+    GET    /api/catalog?q=&temp=&ph=&height=&kind=&edible=&aquatic=&otherUses=
+                              ->  the reference catalogue
     GET    /api/catalog/<pageId>            ->  one entry in full
 
 A PUT to /api/plants is *merged* with what is already on disk rather than
@@ -227,29 +228,48 @@ class Catalog:
     provenance for the extractor rather than anything to show.
     """
 
-    # What a filter may ask about. Two shapes, because the data has two.
+    # What a filter may ask about. Two shapes for the numbers, because the
+    # data has two.
     #
     # BANDS: the recorded range has to cover the figure, with an unrecorded end
-    # treated as open. Right for pH, where 192 of the 234 entries that record
+    # treated as open. Right for pH, where 194 of the 235 entries that record
     # one record both ends.
     #
-    # FLOORS: the recorded minimum has to be at or below the figure. Right for
-    # temperature, where 789 entries record how cold a plant takes and 63 how
-    # hot: asked as a band, "survives 45 °C" matches 738 of them — every plant
-    # whose ceiling simply nobody wrote down. That is a count of what the
-    # encyclopedia is missing, dressed up as an answer.
+    # AT_MOST: one recorded figure has to be at or below the number typed. The
+    # figure differs and so does the English, but the test is the same, and in
+    # both cases it is the useful direction to ask in:
+    #
+    #   temp    the coldest it is known to take. A floor rather than a band
+    #           because 789 entries say how cold a plant goes and 63 how hot:
+    #           asked as a band, "survives 45 °C" matches 738 of them — every
+    #           plant whose ceiling simply nobody wrote down. That is a count
+    #           of what the encyclopedia is missing, dressed up as an answer.
+    #   height  the tallest it is known to get: the maximum where a range was
+    #           given, the single figure otherwise — "growing to 2 m tall" is
+    #           stored as a minimum with no maximum. Here no end is missing
+    #           (901 entries give a range, 1,354 a single figure, none a
+    #           maximum alone), so unlike temperature this could have been a
+    #           band. It is not, because the question a windowsill asks is
+    #           "what stays under 60 cm", not "what is between two heights".
     BANDS = {
         "ph": ("ph_min", "ph_max"),
         "humidity": ("humidity_min", "humidity_max"),
     }
-    FLOORS = {
+    AT_MOST = {
         "temp": "COALESCE(temp_abs_min, temp_avg_min)",
+        "height": "COALESCE(height_max_cm, height_min_cm)",
     }
+
+    # Yes-or-no, and only yes is worth asking. The flags are set from what an
+    # article commits to, so a 0 means nobody wrote it down rather than that
+    # the plant is inedible or dry-footed: "the ones marked edible" is a
+    # question this data can answer, "the ones that are not" is not.
+    FLAGS = {"edible": "edible", "aquatic": "aquatic", "otherUses": "other_uses"}
 
     @classmethod
     def figures(cls):
         """Every filter that takes a number."""
-        return tuple(cls.BANDS) + tuple(cls.FLOORS)
+        return tuple(cls.BANDS) + tuple(cls.AT_MOST)
 
     # Wikipedia describes light four ways. The app's own records know only the
     # first two, so importing one of the others has to choose — but a search
@@ -282,8 +302,11 @@ class Catalog:
 
         The four condition groups come back named exactly as a plant or species
         carries them, so the page can format a catalogue entry with the same
-        code that formats your own plants. An empty group is left out rather
-        than sent as a bag of nulls: absent already means unset everywhere else.
+        code that formats your own plants. Height is a fifth group of the same
+        shape that no plant record has: the app has never asked how big yours
+        get, and an encyclopedia is the one place worth asking. An empty group
+        is left out rather than sent as a bag of nulls: absent already means
+        unset everywhere else.
         """
         out = {"pageId": row["page_id"], "title": row["title"],
                "binomial": row["binomial"], "score": row["score"]}
@@ -294,11 +317,21 @@ class Catalog:
             "humidity": {"min": row["humidity_min"], "max": row["humidity_max"]},
             "ph": {"min": row["ph_min"], "max": row["ph_max"]},
             "light": {"hours": row["light_hours"], "kind": row["light_kind"]},
+            # Centimetres, and a range where the article gave one. A single
+            # figure lands in `min` with no `max`, so the tall end of any
+            # entry is max-or-min; the page formats it that way.
+            "height": {"min": row["height_min_cm"], "max": row["height_max_cm"]},
         }
         for name, bag in groups.items():
             kept = {key: value for key, value in bag.items() if value is not None}
             if kept:
                 out[name] = kept
+
+        # Sent only when set, which is the same convention: a 0 here means the
+        # article said nothing, and absent already means unset everywhere else.
+        for name, column in self.FLAGS.items():
+            if row[column]:
+                out[name] = True
 
         if full:
             out["genus"] = row["genus"]
@@ -310,6 +343,9 @@ class Catalog:
             out["fromZone"] = bool(row["temp_abs_min_from_zone"])
             out["notes"] = row["notes"] or ""
             out["lead"] = row["lead"] or ""
+            # What the flags are about, in the article's words. Search results
+            # get the flags but not this: it is a paragraph, times sixty rows.
+            out["uses"] = row["uses"] or ""
         return out
 
     def search(self, terms):
@@ -324,7 +360,7 @@ class Catalog:
         for name, (low, high) in self.BANDS.items():
             if name not in terms:
                 continue
-            # One end has to be recorded, or the 4,831 rows with no pH at all
+            # One end has to be recorded, or the 4,830 rows with no pH at all
             # would answer every pH question. The other end may be missing:
             # a range known only to start at 4.0 still says something about 6.5.
             where.append("(({low} IS NOT NULL OR {high} IS NOT NULL)"
@@ -333,11 +369,15 @@ class Catalog:
                          .format(low=low, high=high))
             args += [terms[name], terms[name]]
 
-        for name, low in self.FLOORS.items():
+        for name, column in self.AT_MOST.items():
             if name not in terms:
                 continue
-            where.append("({low} IS NOT NULL AND {low} <= ?)".format(low=low))
+            where.append("({col} IS NOT NULL AND {col} <= ?)".format(col=column))
             args.append(terms[name])
+
+        for name, column in self.FLAGS.items():
+            if terms.get(name):
+                where.append(column + " = 1")
 
         if terms.get("kind"):
             where.append("light_kind = ?")
@@ -399,8 +439,11 @@ class Catalog:
                               " OR temp_avg_max IS NOT NULL OR temp_abs_max IS NOT NULL"),
                 "ph": count("ph_min IS NOT NULL OR ph_max IS NOT NULL"),
                 "light": count("light_kind IS NOT NULL"),
+                "height": count("height_min_cm IS NOT NULL"),
                 "notes": count("notes IS NOT NULL AND notes != ''"),
             }
+            for name, column in self.FLAGS.items():
+                self._coverage[name] = count(column + " = 1")
         finally:
             conn.close()
         return self._coverage
@@ -438,6 +481,17 @@ def catalog_terms(query):
         if kind not in Catalog.KINDS:
             return None, "'kind' must be one of: " + ", ".join(Catalog.KINDS)
         terms["kind"] = kind
+
+    # A flag is on or absent. Strict about the value rather than treating
+    # anything non-empty as yes, because the page writes these itself and a
+    # typo there should show up here rather than quietly filter the table.
+    for name in Catalog.FLAGS:
+        text = first(name)
+        if not text or text == "0":
+            continue
+        if text != "1":
+            return None, "'%s' must be 1 or absent" % name
+        terms[name] = True
 
     return terms, ""
 

@@ -492,6 +492,57 @@ input.invalid { border-color: var(--danger); }
 /* Wide enough for "Indirect light" without stretching across the row. */
 .inline select { flex: none; width: auto; min-width: 9em; }
 
+/* The three yes-or-no marks. Tick boxes rather than another select because
+   they are not alternatives — an edible aquatic is a water chestnut. */
+.checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  margin-top: 16px;
+  font-size: 15px;
+}
+.checks label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  /* The base label rule shouts in small caps; these are ordinary words. */
+  font-size: inherit;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: inherit;
+}
+.checks input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+/* ---------- the catalogue's marks ----------
+
+   Read at a glance down a list of sixty, which is what a badge is for and what
+   another clause on the already-truncated summary line would not have been. */
+.flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 0;
+}
+.flag {
+  padding: 1px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--ink-dim);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
 /* ---------- buttons ---------- */
 .row {
   display: flex;
