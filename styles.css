@@ -26,6 +26,12 @@
 
 * { box-sizing: border-box; }
 
+/* Everything here is shown and hidden through the `hidden` attribute, and a
+   class that sets `display` beats the browser's own rule for it — .photo and
+   .flags both did, which is why a plant with no picture kept an empty card
+   where one would go. */
+[hidden] { display: none !important; }
+
 html {
   height: 100%;
   -webkit-text-size-adjust: 100%;

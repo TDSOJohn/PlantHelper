@@ -667,12 +667,13 @@ function markWatered(id) {
 
 /* =========================================================================
    Routing — #/ , #/all , #/new , #/p/<id> , #/p/<id>/edit ,
-             #/species , #/s/new , #/s/<id>/edit , #/s/from/<pageId> ,
+             #/species , #/s/new , #/s/<id> , #/s/<id>/edit ,
+             #/s/from/<pageId> ,
              #/catalog , #/c/<pageId> , #/settings
    ========================================================================= */
 
-const VIEWS = ['list', 'all', 'detail', 'edit', 'species', 'species-edit',
-               'catalog', 'catalog-detail', 'settings'];
+const VIEWS = ['list', 'all', 'detail', 'edit', 'species', 'species-detail',
+               'species-edit', 'catalog', 'catalog-detail', 'settings'];
 
 function route() {
   return (location.hash || '#/').slice(1);
@@ -733,6 +734,9 @@ function render() {
 
   const speciesEdit = path.match(/^\/s\/([^/]+)\/edit$/);
   if (speciesEdit) return renderSpeciesForm(speciesEdit[1]);
+
+  const speciesDetail = path.match(/^\/s\/([^/]+)$/);
+  if (speciesDetail) return renderSpeciesDetail(speciesDetail[1]);
 
   const editMatch = path.match(/^\/p\/([^/]+)\/edit$/);
   if (editMatch) return renderForm(editMatch[1]);
@@ -855,7 +859,7 @@ function renderDetail(id) {
   speciesLink.hidden = !parent;
   if (parent) {
     speciesLink.textContent = 'open';
-    speciesLink.href = '#/s/' + encodeURIComponent(parent.id) + '/edit';
+    speciesLink.href = '#/s/' + encodeURIComponent(parent.id);
   }
 
   fill($('#d-place'), placeText(p), 'Not set');
@@ -1382,7 +1386,7 @@ function renderSpecies() {
   for (const record of items) {
     const li = document.createElement('li');
     const a = document.createElement('a');
-    a.href = '#/s/' + encodeURIComponent(record.id) + '/edit';
+    a.href = '#/s/' + encodeURIComponent(record.id);
 
     const text = document.createElement('div');
     text.className = 'text';
@@ -1406,6 +1410,64 @@ function renderSpecies() {
 
   $('#no-species').hidden = items.length > 0;
   show('species', items.length ? `Species (${items.length})` : 'Species', false);
+}
+
+/**
+ * One species, read rather than edited.
+ *
+ * A plant opens the species it follows, and the species list opens a row, so
+ * this is what both land on: the same facts a catalogue entry shows, laid out
+ * the same way, plus the plants of your own that follow it. The form is one
+ * button away rather than the page itself — a species is read far more often
+ * than it is changed.
+ */
+function renderSpeciesDetail(id) {
+  const record = species.find((x) => x.id === id && !x.deletedAt);
+  if (!record) {
+    location.replace('#/species');   // no history entry for a species that is gone
+    return;
+  }
+
+  $('#sd-name').textContent = record.name;
+
+  fill($('#sd-temp'), tempText(record), 'Not set');
+  fill($('#sd-humidity'), humidityText(record), 'Not set');
+  const ph = phText(record);
+  fill($('#sd-ph'), ph && 'pH ' + ph, 'Not set');
+  fill($('#sd-light'), lightText(record), 'Not set');
+  fill($('#sd-height'), heightText(record), 'Not set');
+  fill($('#sd-sched'), scheduleText(record), 'No schedule set');
+
+  // What the article committed to, on a species that was filled in from one.
+  const box = $('#sd-catalog');
+  box.hidden = !record.catalogId;
+  if (!box.hidden) {
+    const marks = fillMarks($('#sd-flags'), record);
+    $('#sd-flags').hidden = !marks.length;
+    // As on the catalogue entry: "Nothing recorded" under a mark or two would
+    // be a contradiction, so the paragraph only stands in for absent marks.
+    const uses = $('#sd-uses');
+    uses.hidden = !record.uses && marks.length > 0;
+    fill(uses, record.uses, 'Nothing recorded');
+  }
+
+  fill($('#sd-notes'), record.notes, 'No notes');
+
+  const today = todayKey();
+  const mine = live().filter((p) => p.speciesId === record.id).sort(byName);
+  const ul = $('#sd-plants');
+  ul.textContent = '';
+  for (const plant of mine) ul.appendChild(plantRow(plant, today, false));
+  $('#sd-plants-heading').hidden = !mine.length;
+  $('#sd-count').hidden = mine.length > 0;
+  $('#sd-count').textContent = mine.length ? '' : 'No plants of this kind yet.';
+
+  $('#sd-edit').href = '#/s/' + encodeURIComponent(record.id) + '/edit';
+  const open = $('#sd-catalog-open');
+  open.hidden = !record.catalogId;
+  if (record.catalogId) open.href = '#/c/' + encodeURIComponent(record.catalogId);
+
+  show('species-detail', 'Species', true);
 }
 
 /**
@@ -1525,7 +1587,14 @@ function renderSpeciesForm(id, entry) {
     }
 
     commit();
-    replaceRoute('#/species');
+    // Same as the plant form: a submitted form must not stay in history. If
+    // the editor was opened from this species' own page, pop it; otherwise
+    // replace the entry. Either way it ends up on the species it just saved.
+    if (record && cameFrom === '/s/' + record.id) {
+      history.back();
+    } else {
+      replaceRoute('#/s/' + encodeURIComponent(saved.id));
+    }
   };
 
   $('#sp-cancel').onclick = () => history.back();

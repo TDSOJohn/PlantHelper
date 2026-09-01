@@ -56,6 +56,19 @@ match ignores case and surrounding spaces. There is no picker to keep in sync
 and no migration: a plant whose species is just typed text stays exactly as it
 was until a record by that name exists.
 
+### The species page
+
+A row in the species list, and the **open** link beside a plant's species,
+land on the species itself rather than on the form for it: the same facts a
+catalogue entry shows, laid out the same way, then whatever the catalogue had
+to say about the kind, the notes, and the plants of your own that follow it.
+**Edit species** is the way into the form, and on a species that came from the
+catalogue **Open the catalogue entry** goes back to the article's prose.
+
+A species is read far more often than it is changed — every time you wonder
+what a plant of yours is supposed to want — and opening straight into a form
+made every one of those a chance to change something by accident.
+
 ### Filling one in from the catalogue
 
 Nine species in ten are already in the [catalogue](#catalogue), so you should
