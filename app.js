@@ -667,7 +667,7 @@ function show(view, title, canGoBack) {
     tab.classList.toggle('active', tab.getAttribute('data-tab') === path);
   }
 
-  window.scrollTo(0, 0);
+  $('main').scrollTop = 0;
 }
 
 /**

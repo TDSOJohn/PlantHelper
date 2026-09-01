@@ -26,33 +26,31 @@
 
 * { box-sizing: border-box; }
 
-html { -webkit-text-size-adjust: 100%; }
+html {
+  height: 100%;
+  -webkit-text-size-adjust: 100%;
+}
 
+/* The document itself never scrolls: <main> is the only scroller. That is what
+   keeps the tab bar still on iOS -- with no document scroll offset there is
+   nothing for Safari to lag behind on. */
 body {
+  height: 100%;
   margin: 0;
-  /* room for the fixed tab bar */
-  padding: 0 0 calc(env(safe-area-inset-bottom) + 62px);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   background: var(--bg);
   color: var(--ink);
   font: 17px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   overflow-wrap: break-word;
 }
 
-/* ---------- tab bar ----------
-
-   On iOS this drifts a little during a momentum scroll, and more so once the
-   software keyboard has been up, because a fixed element is painted outside
-   the scrolling content and only put back when scrolling stops. Sticky
-   positioning in a flex column, and hiding the bar while the keyboard was up,
-   were both tried and neither fixed it. Left plain rather than carrying a
-   workaround that does not work. */
+/* ---------- tab bar ---------- */
 .tabs {
-  position: fixed;
-  z-index: 20;
-  left: 0;
-  right: 0;
-  bottom: 0;
   display: flex;
+  flex: none;
   padding-bottom: env(safe-area-inset-bottom);
   background: var(--bg);
   border-top: 1px solid var(--line);
@@ -84,10 +82,8 @@ body {
 
 /* ---------- top bar ---------- */
 .topbar {
-  position: sticky;
-  top: 0;
-  z-index: 10;
   display: flex;
+  flex: none;
   align-items: center;
   gap: 4px;
   padding: calc(env(safe-area-inset-top) + 10px) var(--pad) 10px;
@@ -126,6 +122,7 @@ body {
 
 /* ---------- status ---------- */
 .status {
+  flex: none;
   padding: 8px var(--pad);
   font-size: 14px;
   color: var(--ink-dim);
@@ -135,7 +132,16 @@ body {
 .status.error { color: var(--danger); }
 
 /* ---------- views ---------- */
-main { max-width: 720px; margin: 0 auto; }
+main {
+  flex: 1;
+  min-height: 0;          /* without this the flex child refuses to shrink */
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
 .view { padding: var(--pad); }
 
 /* ---------- lists ---------- */
@@ -224,24 +230,6 @@ main { max-width: 720px; margin: 0 auto; }
   text-align: center;
 }
 .empty span { font-size: 15px; }
-
-.fab {
-  position: fixed;
-  right: 20px;
-  bottom: calc(env(safe-area-inset-bottom) + 20px);
-  display: grid;
-  place-items: center;
-  width: 56px;
-  height: 56px;
-  border-radius: 28px;
-  background: var(--accent);
-  color: var(--accent-ink);
-  font-size: 30px;
-  line-height: 1;
-  text-decoration: none;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
-}
-.fab:active { transform: scale(0.95); }
 
 /* ---------- detail ---------- */
 .photo {
