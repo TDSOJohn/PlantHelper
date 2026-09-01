@@ -139,13 +139,36 @@ function lightText(plant) {
   return '';
 }
 
+/* Height is a fifth group of the same shape, carried by a species and by a
+   catalogue entry but never by a plant: how big the kind gets is a fact about
+   the kind, and the one place worth asking is an encyclopedia.
+
+   Centimetres in the record, metres once that stops being readable. A single
+   figure is what the article gave — "growing to 2 m tall" is stored as a
+   minimum with no maximum — so it reads as a ceiling rather than as the
+   bottom of a range it never had. */
+function heightText(record) {
+  const low = figure(record, 'height', 'min');
+  const high = figure(record, 'height', 'max');
+  const tall = high === null ? low : high;
+  if (tall === null) return '';
+
+  const unit = tall >= 100 ? ' m' : ' cm';
+  const say = (cm) => (tall >= 100 ? Number((cm / 100).toFixed(1)) : cm);
+
+  if (low === null || high === null) return 'To ' + say(tall) + unit;
+  return say(low) + '–' + say(high) + unit;
+}
+
 /* =========================================================================
    Species and inheritance
 
-   A species record carries what is true of every plant of that kind — all
-   four condition groups above, and how often it wants water — and nothing
-   that belongs to an individual: no watering notes, no notes, no photo, no
-   diary of when it was last watered.
+   A species record carries what is true of every plant of that kind — the
+   condition groups above, how big it gets, how often it wants water, and
+   whatever the catalogue had to say about the kind — and nothing that belongs
+   to an individual: no watering notes, no photo, no diary of when it was last
+   watered. Notes sit on both, because they are two different notes: the
+   species holds what is true of the kind, a plant what is true of yours.
 
    A plant follows one through `speciesId`. Wherever the plant leaves a group
    unset the species' figure applies; anything the plant fills in wins. Since
@@ -644,7 +667,7 @@ function markWatered(id) {
 
 /* =========================================================================
    Routing — #/ , #/all , #/new , #/p/<id> , #/p/<id>/edit ,
-             #/species , #/s/new , #/s/<id>/edit ,
+             #/species , #/s/new , #/s/<id>/edit , #/s/from/<pageId> ,
              #/catalog , #/c/<pageId> , #/settings
    ========================================================================= */
 
@@ -683,6 +706,7 @@ function replaceRoute(hash) {
 function refresh() {
   const path = route();
   if (path === '/new' || path === '/s/new' || /\/edit$/.test(path)) return;
+  if (/^\/s\/from\/\d+$/.test(path)) return;   // a form half filled from the catalogue
   // The catalogue is not made of plants. Nothing a sync brings back can change
   // what is on screen there, and re-rendering it would re-run the search over
   // the network: a second round trip for the same answer, landing under
@@ -703,6 +727,9 @@ function render() {
 
   const entryMatch = path.match(/^\/c\/(\d+)$/);
   if (entryMatch) return renderCatalogEntry(entryMatch[1]);
+
+  const filled = path.match(/^\/s\/from\/(\d+)$/);
+  if (filled) return renderSpeciesFromCatalog(filled[1]);
 
   const speciesEdit = path.match(/^\/s\/([^/]+)\/edit$/);
   if (speciesEdit) return renderSpeciesForm(speciesEdit[1]);
@@ -839,6 +866,9 @@ function renderDetail(id) {
   showResolved(p, 'humidity', '#d-humidity', humidityText);
   showResolved(p, 'ph', '#d-ph', phText);
   showResolved(p, 'light', '#d-light', lightText);
+  // Only ever the species': a plant has no height of its own to record, and
+  // the row simply reads "Not set" until the kind it follows knows one.
+  showResolved(p, 'height', '#d-height', heightText);
   markInherited($('#d-sched-from'), inherited(p, 'schedule').from);
 
   const schedule = scheduleText(p);
@@ -971,8 +1001,21 @@ function figureGroups(prefix) {
   ];
 }
 
+/* The fifth group, appended for the species form alone. A plant has no height
+   boxes to fill in, so `GROUPS` — which is also what the plant detail reads
+   its inherited figures through — is left exactly as it was. */
+const heightGroup = (prefix) => ({
+  group: 'height',
+  fields: { min: '#' + prefix + '-height-min', max: '#' + prefix + '-height-max' },
+  placeholders: { min: '30', max: '90' },
+  floor: 0,
+  ceiling: 20000,          // 200 m, over the 116 of the tallest thing in the catalogue
+  error: '#' + prefix + '-height-error',
+  message: 'The first figure cannot be higher than the second.'
+});
+
 const GROUPS = figureGroups('f');            // the plant form
-const SPECIES_GROUPS = figureGroups('sp');   // the species form
+const SPECIES_GROUPS = figureGroups('sp').concat(heightGroup('sp'));
 
 function loadFigures(spec, record, from) {
   for (const key of Object.keys(spec.fields)) {
@@ -1323,8 +1366,9 @@ function renderForm(id) {
 /** The one-line summary of what a species says, for its row in the list. */
 const speciesSummary = (record) => {
   const ph = phText(record);
-  return [tempText(record), humidityText(record), ph && 'pH ' + ph,
-          lightText(record), scheduleText(record)].filter(Boolean).join(' · ');
+  return [heightText(record), tempText(record), humidityText(record),
+          ph && 'pH ' + ph, lightText(record),
+          scheduleText(record)].filter(Boolean).join(' · ');
 };
 
 const followerCount = (record) => live().filter((p) => p.speciesId === record.id).length;
@@ -1364,7 +1408,11 @@ function renderSpecies() {
   show('species', items.length ? `Species (${items.length})` : 'Species', false);
 }
 
-function renderSpeciesForm(id) {
+/**
+ * The species form. `entry` is a catalogue entry to fill it from, if this was
+ * reached from one; the record it edits may be an existing species or none.
+ */
+function renderSpeciesForm(id, entry) {
   const record = id ? species.find((x) => x.id === id && !x.deletedAt) : null;
   if (id && !record) {
     location.replace('#/species');   // no history entry for a species that is gone
@@ -1375,9 +1423,31 @@ function renderSpeciesForm(id) {
   form.reset();
   $('#sp-name').value = record ? record.name : '';
   $('#sp-name').classList.remove('invalid');
+  $('#sp-notes').value = record ? record.notes || '' : '';
   for (const spec of SPECIES_GROUPS) loadFigures(spec, record, null);
   loadLight(SPECIES_LIGHT, record, null);
   loadSchedule(SPECIES_SCHED, record);
+
+  // What the catalogue said, kept out of the form because none of it is
+  // anything you would type. Saved back untouched unless an entry is pulled
+  // in, which replaces it whole.
+  let linked = catalogSnapshot(record);
+  if (entry) linked = pullCatalogEntry(entry);
+  showCatalogLink(linked);
+
+  $('#sp-catalog-refresh').onclick = async () => {
+    const button = $('#sp-catalog-refresh');
+    button.disabled = true;
+    try {
+      linked = pullCatalogEntry(await catalogRequest('/' + encodeURIComponent(linked.catalogId)));
+      showCatalogLink(linked);
+      setStatus('Filled in from the catalogue. Nothing is saved until you press Save.');
+    } catch (e) {
+      setStatus('Cannot read the catalogue — ' + e.message + '.', true, true);
+    } finally {
+      button.disabled = false;
+    }
+  };
 
   const remove = $('#sp-delete');
   remove.hidden = !record;
@@ -1424,17 +1494,21 @@ function renderSpeciesForm(id) {
     }
 
     const now = new Date().toISOString();
-    const schedule = readSchedule(SPECIES_SCHED, null);
-    const light = readLight(SPECIES_LIGHT);
+    const fields = { name, temps: figures.temps, humidity: figures.humidity,
+                     ph: figures.ph, height: figures.height,
+                     light: readLight(SPECIES_LIGHT),
+                     schedule: readSchedule(SPECIES_SCHED, null),
+                     notes: $('#sp-notes').value.trim(), updatedAt: now };
+    // Undefined where the link was dropped or a mark went away, which is how
+    // JSON.stringify is asked to leave a key out.
+    for (const key of CATALOG_KEEP) fields[key] = linked[key];
     const wasCalled = record ? record.name : '';
 
     let saved = record;
     if (record) {
-      Object.assign(record, { name, temps: figures.temps, humidity: figures.humidity,
-                              ph: figures.ph, light, schedule, updatedAt: now });
+      Object.assign(record, fields);
     } else {
-      saved = { id: uid(), name, temps: figures.temps, humidity: figures.humidity,
-                ph: figures.ph, light, schedule, createdAt: now, updatedAt: now };
+      saved = Object.assign({ id: uid(), createdAt: now }, fields);
       species.push(saved);
     }
 
@@ -1457,7 +1531,126 @@ function renderSpeciesForm(id) {
   $('#sp-cancel').onclick = () => history.back();
 
   show('species-edit', record ? 'Edit species' : 'New species', true);
-  if (!record) setTimeout(() => $('#sp-name').focus(), 50);
+  // Not when the catalogue has just filled the name in: there is nothing to
+  // type, and on a phone the keyboard would cover what it filled in.
+  if (!record && !entry) setTimeout(() => $('#sp-name').focus(), 50);
+}
+
+/* ---------- filling a species from the catalogue ----------
+
+   The catalogue is 5,065 species that somebody has already looked up, and a
+   species you type out by hand is one of them nine times in ten. Filling one
+   in from the other copies the figures across rather than pointing at them:
+   a phone holds your plants offline and would otherwise have nothing to show
+   for a species the moment it is away from the Pi. What it keeps of the entry
+   is `catalogId`, so the entry can be reopened and re-read later.
+   ========================================================================= */
+
+/* Wikipedia describes light four ways and a species knows two, so importing
+   one of the other two has to choose. Partial sun is still sun; shade is the
+   absence of it, which is what indirect light amounts to indoors. */
+const CATALOG_TO_LIGHT = { direct: 'direct', indirect: 'indirect',
+                           partial: 'direct', shade: 'indirect' };
+
+/* What a species remembers of the entry it was filled from. Everything else
+   the catalogue sends lands in a box on the form and is yours to edit; these
+   have none, because they are not figures you would ever type — they are what
+   the article committed to, and they are only worth having as read back. */
+const CATALOG_KEEP = ['catalogId', 'uses', 'edible', 'otherUses', 'aquatic'];
+
+const catalogSnapshot = (record) => {
+  const out = {};
+  for (const key of CATALOG_KEEP) {
+    if (record && record[key]) out[key] = record[key];
+  }
+  return out;
+};
+
+/** The species already filled from this entry, or the one going by its name. */
+const speciesForEntry = (entry) =>
+  liveSpecies().find((s) => s.catalogId === entry.pageId) ||
+  speciesByName(entry.title) || null;
+
+/**
+ * Lay a catalogue entry over the species form, and return what of it has to
+ * be carried into the record by hand.
+ *
+ * Every figure the entry records goes into its box over whatever was there:
+ * that is what filling in from the catalogue has to mean, and since nothing
+ * is written until Save, a fill you did not want is one Cancel away. The name
+ * and the notes are filled only when empty — those are yours once you have
+ * written them — and the schedule is never touched at all, because how often
+ * you water something is not a fact an encyclopedia has an opinion on.
+ */
+function pullCatalogEntry(entry) {
+  const name = $('#sp-name');
+  if (!name.value.trim()) name.value = entry.title;
+  name.classList.remove('invalid');
+
+  for (const spec of SPECIES_GROUPS) {
+    for (const key of Object.keys(spec.fields)) {
+      const value = figure(entry, spec.group, key);
+      if (value !== null) $(spec.fields[key]).value = value;
+      $(spec.fields[key]).classList.remove('invalid');
+    }
+    $(spec.error).hidden = true;
+  }
+
+  const hours = figure(entry, 'light', 'hours');
+  if (hours !== null) $(SPECIES_LIGHT.hours).value = hours;
+  const kind = CATALOG_TO_LIGHT[(entry.light && entry.light.kind) || ''];
+  if (kind) {
+    for (const radio of $$(SPECIES_LIGHT.radios)) radio.checked = radio.value === kind;
+  }
+
+  const notes = $('#sp-notes');
+  if (!notes.value.trim()) notes.value = entry.notes || '';
+
+  const kept = { catalogId: entry.pageId };
+  if (entry.uses) kept.uses = entry.uses;
+  for (const flag of ['edible', 'otherUses', 'aquatic']) {
+    if (entry[flag]) kept[flag] = true;
+  }
+  return kept;
+}
+
+/** The "from the catalogue" block on the form: hidden until there is a link. */
+function showCatalogLink(linked) {
+  const box = $('#sp-catalog');
+  box.hidden = !linked.catalogId;
+  if (box.hidden) return;
+
+  $('#sp-catalog-open').href = '#/c/' + encodeURIComponent(linked.catalogId);
+  const marks = fillMarks($('#sp-catalog-flags'), linked);
+  $('#sp-catalog-flags').hidden = !marks.length;
+  fill($('#sp-catalog-uses'), linked.uses, 'Nothing recorded');
+}
+
+/**
+ * The species form, opened from a catalogue entry.
+ *
+ * Which species it fills: the one already linked to this entry, else one
+ * going by the entry's own name — that is the case this is really for, a
+ * species typed out by hand before you thought to look it up — else a new
+ * one. The entry has to be read before any of that can be decided, so a
+ * catalogue that cannot be reached leaves you on the entry you came from
+ * rather than on a blank form.
+ */
+async function renderSpeciesFromCatalog(pageId) {
+  const mine = ++catalogRun;
+  let entry;
+  try {
+    entry = await catalogRequest('/' + encodeURIComponent(pageId));
+  } catch (e) {
+    if (mine !== catalogRun) return;
+    setStatus('Cannot read the catalogue — ' + e.message + '.', true, true);
+    replaceRoute('#/c/' + encodeURIComponent(pageId));
+    return;
+  }
+  if (mine !== catalogRun) return;
+
+  const existing = speciesForEntry(entry);
+  renderSpeciesForm(existing ? existing.id : null, entry);
 }
 
 /* =========================================================================
@@ -1502,23 +1695,6 @@ function fillMarks(node, entry) {
     node.appendChild(pill);
   }
   return marks;
-}
-
-/* Centimetres in the record, metres once that stops being readable. A single
-   figure is what the article gave — "growing to 2 m tall" is stored as a
-   minimum with no maximum — so it reads as a ceiling rather than as the
-   bottom of a range it never had. */
-function heightText(entry) {
-  const low = figure(entry, 'height', 'min');
-  const high = figure(entry, 'height', 'max');
-  const tall = high === null ? low : high;
-  if (tall === null) return '';
-
-  const unit = tall >= 100 ? ' m' : ' cm';
-  const say = (cm) => (tall >= 100 ? Number((cm / 100).toFixed(1)) : cm);
-
-  if (low === null || high === null) return 'To ' + say(tall) + unit;
-  return say(low) + '–' + say(high) + unit;
 }
 
 function catalogLightText(entry) {
@@ -1734,6 +1910,8 @@ async function renderCatalogEntry(pageId) {
                   '#c-uses', '#c-notes', '#c-lead', '#c-meta'];
   for (const sel of fields) $(sel).textContent = '';
 
+  $('#c-add').textContent = 'Add as a species';
+
   const mine = ++catalogRun;
   let entry;
   try {
@@ -1781,6 +1959,14 @@ async function renderCatalogEntry(pageId) {
     ' · known here as ' + (entry.aliases || []).join(', ');
 
   $('#c-wiki').href = 'https://en.wikipedia.org/?curid=' + encodeURIComponent(entry.pageId);
+
+  // The way out of the catalogue and into your own records. It says which
+  // species it would fill, because filling one you already keep is the common
+  // case and silently editing it would be a surprise.
+  const existing = speciesForEntry(entry);
+  const add = $('#c-add');
+  add.href = '#/s/from/' + encodeURIComponent(entry.pageId);
+  add.textContent = existing ? 'Fill in ' + existing.name : 'Add as a species';
 }
 
 /* ---------- settings ---------- */

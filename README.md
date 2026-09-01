@@ -43,14 +43,48 @@ what the next section is about.
 ## Species
 
 A species record holds what is true of every plant of that kind — the
-temperatures, the humidity, the soil pH, the light it wants, and how often it
-wants water — and nothing that belongs to an individual. No watering notes, no notes, no photo, and no record
-of when anything was last watered.
+temperatures, the humidity, the soil pH, the light it wants, how big it gets,
+how often it wants water, and notes on the kind — and nothing that belongs to
+an individual. No watering notes, no photo, and no record of when anything was
+last watered.
+
+Notes sit on both, because they are two different notes: the species holds what
+is true of the kind, a plant what is true of yours.
 
 A plant follows one by having exactly that name in its own species box; the
 match ignores case and surrounding spaces. There is no picker to keep in sync
 and no migration: a plant whose species is just typed text stays exactly as it
 was until a record by that name exists.
+
+### Filling one in from the catalogue
+
+Nine species in ten are already in the [catalogue](#catalogue), so you should
+not have to type one out. Open the entry and press **Add as a species**: the
+form opens with every figure the entry records already in its boxes, and you
+press Save.
+
+If you already keep a species that entry would describe — one linked to it
+before, or simply one going by the same name — the button says **Fill in
+*that*** instead, and it is that record the form opens on. Typing a species by
+hand and finding it in the catalogue afterwards is the case this is really for.
+
+What comes across: the four condition groups, the height, the notes, and the
+three marks with the *Uses* paragraph behind them. What does not: the watering
+schedule, because how often you water something is not a fact an encyclopedia
+has an opinion on. The name and the notes are filled only where you left them
+empty; the figures are written over. Nothing is saved until you press Save, so
+a fill you did not want is one Cancel away.
+
+The figures are **copied, not linked**. A phone holds your plants offline and
+would otherwise have nothing to show for a species the moment it is away from
+the Pi — and re-mining a newer dump must never silently change the care figures
+of a plant you own. What the record keeps of the entry is its `catalogId`, so
+the form can offer **Open the entry** to read the article's prose again, and
+**Fill in again** to take a newer dump's figures deliberately.
+
+Wikipedia describes light four ways where a species knows two, so importing one
+of the other two has to choose: partial sun is still sun, and shade is the
+absence of it, which is what indirect light amounts to indoors.
 
 ### What is inherited, and what wins
 
@@ -59,6 +93,10 @@ the plant fills in wins, field group by field group — so a species can set the
 temperature while one particular plant on a cold windowsill sets its own. On the
 plant's page, a value that came from the species is labelled *inherited*, so a
 number you did not type is never mistaken for one you did.
+
+Height is the one that only ever goes one way. How big a kind gets is a fact
+about the kind, so a plant has no height boxes of its own; its page shows the
+species' figure or *Not set*.
 
 On the forms a box is in one of three states, styled apart because two of them
 are grey and would otherwise read as figures somebody had entered:
@@ -98,7 +136,8 @@ Two species cannot share a name, for the same reason.
 
 **Deleting** a species asks first, and says how many plants follow it. Those
 plants keep every figure they had set themselves and lose only the ones they
-were borrowing. The species itself becomes a tombstone, exactly like a deleted
+were borrowing. Nothing happens to the catalogue entry it was filled from —
+the app never writes to that file. The species itself becomes a tombstone, exactly like a deleted
 plant.
 
 ### Why this is not a database
@@ -204,11 +243,12 @@ rather than tidied up on the way past. (Earlier builds leaked taxobox tails —
 `| image = … | genus = …` — into about a third of the leads. `plants_db` fixed
 that at the source, which is where such a fix belongs.)
 
-Nothing in the catalogue is copied into your own records automatically, and the
-app never writes to the file. Seeding a species from an entry would be the
-natural next step; it should **copy** the figures rather than link to them, so
-that re-mining a newer dump can never silently change the care figures of a
-plant you own.
+Nothing is copied into your own records behind your back, and the app never
+writes to the file. **Add as a species** on an entry is the one road out of the
+catalogue and into your own records, and it copies the figures rather than
+linking to them, so that re-mining a newer dump can never silently change the
+care figures of a plant you own. See
+[filling one in from the catalogue](#filling-one-in-from-the-catalogue).
 
 ## Watering schedules
 
@@ -539,7 +579,13 @@ usual on an SD card. Prefer `sudo shutdown -h now` over pulling the plug.
       "humidity": { "min": 40, "max": 60 },
       "ph": { "min": 5.5, "max": 7 },
       "light": { "hours": 6, "kind": "indirect" },
+      "height": { "min": 2000 },
       "schedule": { "type": "interval", "days": 7 },
+      "notes": "Prefers bright indirect light and 20–30 °C.",
+      "catalogId": 716481,
+      "edible": true,
+      "otherUses": true,
+      "uses": "The flesh, similar to pineapple in texture, can be eaten.",
       "createdAt": "2026-08-19T09:00:00Z",
       "updatedAt": "2026-08-19T09:00:00Z"
     }
@@ -589,6 +635,16 @@ light. `species` is the
 text that was typed; it is kept in step when a species is renamed, and stands
 alone for a plant not linked to any record. A `speciesId` naming a species this
 device has not synced yet resolves to nothing rather than being an error.
+
+The last five keys on a species are what it kept of the
+[catalogue entry](#filling-one-in-from-the-catalogue) it was filled from.
+`catalogId` is a Wikipedia page id, and having it is what puts *Open the entry*
+and *Fill in again* on the form; the marks and `uses` are there because they
+are the only things the catalogue sends that have no box to be edited in. All
+five are absent on a species you typed out yourself, and dropping the link
+drops all five together. `height` is in whole centimetres and is a species key
+only — a plant never carries one — and like the other groups a lone figure in
+`min` reads as a ceiling: *to 20 m*.
 
 `schedule` is `null` or absent when a plant has none, `weekdays` runs 0 = Sunday
 to 6 = Saturday, and `lastWatered` is a local date. `photo` is absent when there

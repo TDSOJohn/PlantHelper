@@ -78,6 +78,11 @@
           <span class="from" id="d-light-from"></span>
         </div>
         <div class="fact">
+          <span class="key">Height</span>
+          <span class="val" id="d-height"></span>
+          <span class="from" id="d-height-from"></span>
+        </div>
+        <div class="fact">
           <span class="key">Schedule</span>
           <span class="val" id="d-sched"></span>
           <span class="from" id="d-sched-from"></span>
@@ -374,6 +379,7 @@
       <p id="c-meta" class="meta"></p>
 
       <div class="row">
+        <a id="c-add" class="btn primary" href="#/species">Add as a species</a>
         <a id="c-wiki" class="btn" href="#" target="_blank" rel="noopener noreferrer">Open on Wikipedia</a>
       </div>
     </div>
@@ -388,6 +394,23 @@
              spellcheck="false" placeholder="Monstera deliciosa">
       <p class="hint">A plant joins this species by having exactly this name in its
         own species box.</p>
+
+      <!-- Only on a species that was filled in from the catalogue. The two
+           things below have no box of their own because they are not figures
+           anybody types: they are what the article committed to. -->
+      <fieldset class="group" id="sp-catalog" hidden>
+        <legend>From the catalogue</legend>
+        <p id="sp-catalog-flags" class="flags"></p>
+        <p id="sp-catalog-uses" class="value"></p>
+        <div class="row">
+          <a id="sp-catalog-open" class="btn" href="#/catalog">Open the entry</a>
+          <button type="button" id="sp-catalog-refresh" class="btn">Fill in again</button>
+        </div>
+        <p class="hint">Filling in again overwrites every figure the entry
+          records, never touches the watering schedule, and fills the name and
+          the notes only where you have left them empty. Nothing is saved
+          until you press Save.</p>
+      </fieldset>
 
       <fieldset class="group">
         <legend>Temperature</legend>
@@ -452,6 +475,22 @@
       </fieldset>
 
       <fieldset class="group">
+        <legend>Size</legend>
+        <div class="inline">
+          <span>Grows</span>
+          <input id="sp-height-min" type="number" min="0" max="20000" step="1"
+                 inputmode="numeric" aria-label="Shortest it grows, cm">
+          <span>to</span>
+          <input id="sp-height-max" type="number" min="0" max="20000" step="1"
+                 inputmode="numeric" aria-label="Tallest it grows, cm">
+          <span>cm</span>
+        </div>
+        <p id="sp-height-error" class="hint error" hidden></p>
+        <p class="hint">Centimetres, and a range where you know one. A single
+          figure on its own reads as a ceiling — "to 2 m".</p>
+      </fieldset>
+
+      <fieldset class="group">
         <legend>Watering schedule</legend>
         <div class="seg">
           <label><input type="radio" name="sp-sched" value="none" checked><span>None</span></label>
@@ -482,6 +521,10 @@
         <p class="hint">Each plant counts the days from when it was last watered, so
           the species sets the interval and never the date.</p>
       </fieldset>
+
+      <label for="sp-notes">Notes</label>
+      <textarea id="sp-notes" name="sp-notes" rows="6"
+                placeholder="What is true of the kind. A plant of your own keeps its own notes."></textarea>
 
       <div class="row">
         <button type="submit" class="btn primary">Save</button>
