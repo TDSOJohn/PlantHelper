@@ -173,6 +173,12 @@ function heightText(record) {
    watered. Notes sit on both, because they are two different notes: the
    species holds what is true of the kind, a plant what is true of yours.
 
+   `knownAs` is the exception that is not a fact about the plant at all: it is
+   what *you* call the kind, typed by hand and empty until you do. Nothing
+   matches on it, nothing fills it in, and no figure is read from it — a
+   species is still joined by its botanical name alone. It exists because a
+   list of binomials is hard to read and *Swiss cheese plant* is not.
+
    A plant follows one through `speciesId`. Wherever the plant leaves a group
    unset the species' figure applies; anything the plant fills in wins. Since
    "unset" was already how these read, every plant that existed before species
@@ -1445,7 +1451,10 @@ function renderSpecies() {
     const used = followerCount(record);
     const sub = document.createElement('div');
     sub.className = 'sub';
-    sub.textContent = [speciesSummary(record),
+    // What you call it leads, where you have said. It is the only thing on
+    // this line that is a name rather than a figure, and a list of binomials
+    // is exactly where a common name earns its place.
+    sub.textContent = [record.knownAs, speciesSummary(record),
                        used === 1 ? '1 plant' : used + ' plants'].filter(Boolean).join(' · ');
     text.appendChild(sub);
 
@@ -1475,6 +1484,13 @@ function renderSpeciesDetail(id) {
   }
 
   $('#sd-name').textContent = record.name;
+  // Under the binomial rather than beside it: the heading is what a plant
+  // joins by, and this is only what you call the thing. Absent where it was
+  // never filled in, because "Not set" under a name reads as a missing figure
+  // rather than as an empty box nobody had to type in.
+  const known = $('#sd-known');
+  known.hidden = !record.knownAs;
+  known.textContent = record.knownAs || '';
 
   fill($('#sd-temp'), tempText(record), 'Not set');
   fill($('#sd-humidity'), humidityText(record), 'Not set');
@@ -1540,6 +1556,7 @@ function renderSpeciesForm(id, entry) {
   form.reset();
   $('#sp-name').value = record ? record.name : '';
   $('#sp-name').classList.remove('invalid');
+  $('#sp-known').value = record ? record.knownAs || '' : '';
   $('#sp-notes').value = record ? record.notes || '' : '';
   for (const spec of SPECIES_GROUPS) loadFigures(spec, record, null);
   loadLight(SPECIES_LIGHT, record, null);
@@ -1611,7 +1628,8 @@ function renderSpeciesForm(id, entry) {
     }
 
     const now = new Date().toISOString();
-    const fields = { name, temps: figures.temps, humidity: figures.humidity,
+    const fields = { name, knownAs: $('#sp-known').value.trim(),
+                     temps: figures.temps, humidity: figures.humidity,
                      ph: figures.ph, height: figures.height,
                      light: readLight(SPECIES_LIGHT),
                      schedule: readSchedule(SPECIES_SCHED, null),

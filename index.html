@@ -277,6 +277,7 @@
   <section id="view-species-detail" class="view" hidden>
     <div class="detail">
       <h2 id="sd-name"></h2>
+      <p id="sd-known" class="meta" hidden></p>
 
       <div class="facts">
         <div class="fact">
@@ -470,6 +471,13 @@
              spellcheck="false" placeholder="Monstera deliciosa">
       <p class="hint">A plant joins this species by having exactly this name in its
         own species box.</p>
+
+      <label for="sp-known">Known as</label>
+      <input id="sp-known" name="sp-known" type="text" maxlength="80"
+             autocomplete="off" placeholder="Swiss cheese plant">
+      <p class="hint">Optional, and empty until you fill it in: whatever you
+        actually call this kind. Nothing matches on it — a plant still joins by
+        the botanical name above.</p>
 
       <!-- Only on a species that was filled in from the catalogue. The two
            things below have no box of their own because they are not figures

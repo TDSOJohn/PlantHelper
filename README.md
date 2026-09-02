@@ -65,6 +65,25 @@ match ignores case and surrounding spaces. There is no picker to keep in sync
 and no migration: a plant whose species is just typed text stays exactly as it
 was until a record by that name exists.
 
+### Known as
+
+One box on a species is not a fact about the plant at all. **Known as** is what
+*you* call the kind — *Swiss cheese plant*, *basilico* — and it starts empty
+and stays empty until you type in it. Nothing fills it in, not even the
+catalogue, which has a common name for most entries and would have been an
+obvious thing to copy across. It is left alone because a name you did not
+choose is not the name you would have recognised, and the field's whole job is
+recognition.
+
+Nothing matches on it either. A plant still joins a species by the botanical
+name and nothing else, so filling this in, changing it or clearing it can never
+move a plant from one species to another. That is what keeps it safe to treat
+as a scribble.
+
+It shows in two places: under the binomial on the species' own page, and at the
+front of its row in the species list, which is the list it is there to make
+readable. A species you have not filled it in for looks exactly as it did.
+
 ### The species page
 
 A row in the species list, and the **open** link beside a plant's species,
@@ -809,6 +828,7 @@ usual on an SD card. Prefer `sudo shutdown -h now` over pulling the plug.
     {
       "id": "sp-7f3a21",
       "name": "Monstera deliciosa",
+      "knownAs": "Swiss cheese plant",
       "temps": { "absMin": 5, "avgMin": 18, "avgMax": 27, "absMax": 38 },
       "humidity": { "min": 40, "max": 60 },
       "ph": { "min": 5.5, "max": 7 },
@@ -894,7 +914,8 @@ are the only things the catalogue sends that have no box to be edited in. All
 five are absent on a species you typed out yourself, and dropping the link
 drops all five together. `height` is in whole centimetres and is a species key
 only — a plant never carries one — and like the other groups a lone figure in
-`min` reads as a ceiling: *to 20 m*.
+`min` reads as a ceiling: *to 20 m*. `knownAs` is a species key only too, free
+text, and empty or absent until you type in it; see [known as](#known-as).
 
 `schedule` is `null` or absent when a plant has none, `weekdays` runs 0 = Sunday
 to 6 = Saturday, and `lastWatered` is a local date. `photo` is absent when there
