@@ -655,49 +655,42 @@
           <span class="val" id="q-expected"></span>
         </div>
         <div class="fact">
-          <span class="key">Came up</span>
-          <span class="val" id="q-sprouted"></span>
+          <label class="key" for="q-sprouted">Seedlings</label>
+          <span class="val nums">
+            <input id="q-sprouted" type="number" min="0" max="9999" step="1"
+                   inputmode="numeric" placeholder="0">
+            <span class="from" id="q-potted"></span>
+          </span>
         </div>
         <div class="fact">
-          <span class="key">Died</span>
-          <span class="val" id="q-dead"></span>
+          <label class="key" for="q-dead">Died</label>
+          <span class="val nums">
+            <input id="q-dead" type="number" min="0" max="9999" step="1"
+                   inputmode="numeric" placeholder="0">
+          </span>
         </div>
         <div class="fact">
           <span class="key">Still trying</span>
           <span class="val" id="q-trying"></span>
         </div>
       </div>
+      <p id="q-count-error" class="hint error attached" hidden></p>
 
       <div id="q-bar-wrap" class="field">
         <div class="bar" id="q-bar"></div>
         <p class="hint" id="q-bar-text"></p>
       </div>
 
-      <fieldset class="group" id="q-record">
-        <legend>Record what happened</legend>
+      <div class="field" id="q-pot">
         <div class="inline">
           <input id="q-up-n" type="number" min="1" max="9999" step="1"
-                 inputmode="numeric" value="1" aria-label="How many came up">
-          <span>came up</span>
-        </div>
-        <div class="row">
+                 inputmode="numeric" value="1" aria-label="How many to pot up">
           <button type="button" id="q-up-plant" class="btn primary">Pot up as plants</button>
-          <button type="button" id="q-up-only" class="btn">Just count them</button>
         </div>
-        <p class="hint">Potting up creates one plant for each seedling, already
-          following this species. Counting them only moves the tally.</p>
-
-        <div class="inline">
-          <input id="q-dead-n" type="number" min="1" max="9999" step="1"
-                 inputmode="numeric" value="1" aria-label="How many died">
-          <span>died or never came up</span>
-        </div>
-        <div class="row">
-          <button type="button" id="q-dead-add" class="btn">Record</button>
-          <button type="button" id="q-dead-rest" class="btn danger">Give up on the rest</button>
-        </div>
-        <p id="q-record-error" class="hint error" hidden></p>
-      </fieldset>
+        <p class="hint">One plant for each seedling, already following this
+          species. Seedlings counted above are potted up first.</p>
+        <p id="q-pot-error" class="hint error" hidden></p>
+      </div>
 
       <div class="field">
         <span class="label">Notes</span>

@@ -308,6 +308,21 @@ main {
 .fact .val.blank { color: var(--ink-dim); font-style: italic; }
 .fact .val.late { color: var(--danger); font-weight: 600; }
 
+/* The two tallies are typed into the row that shows them. Both selectors are
+   two classes deep on purpose: the base `input[type="number"]` rule further
+   down is 100% wide, and only specificity can outrank it from up here. */
+.fact .val.nums { display: flex; align-items: center; gap: 10px; }
+.fact .val.nums input {
+  flex: none;
+  width: 4.4em;
+  padding: 8px 10px;
+  text-align: center;
+}
+/* A complaint about one of those boxes belongs to the card above it, not to
+   the bar underneath: pulled up inside the card's own bottom margin so there
+   is no doubt which of the two it is about. */
+.hint.attached { margin-top: -12px; }
+
 /* "inherited", and the link through to a plant's species */
 .from {
   flex: none;

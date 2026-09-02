@@ -278,7 +278,7 @@ So a sowing does not have a status. It has counts:
 |---|---|
 | **Sowed** | how many seeds went in, and the day they did |
 | **Up in about** | what the packet promises, in days — optional |
-| **Came up** | how many have appeared since |
+| **Seedlings** | how many have appeared and are still in the tray |
 | **Died** | how many rotted, or simply never came |
 
 *Still trying* is what is left over, and the sowing is finished when it reaches
@@ -289,18 +289,26 @@ the percentages further down would then be counting trays rather than seeds.
 
 ### Recording what happened
 
-Both numbers are entered on the sowing's own page, because adding to them is
-the everyday act and it is one number and one tap:
+Both numbers are boxes on the sowing's own page, typed straight into the card
+that shows them. Going out to the tray and coming back with *four up, three
+gone* is one thought, not a sequence of decisions, and a box takes it in either
+direction: a miscount is corrected by typing the right number over it, and a
+sowing that has been given up on can be reopened the same way. Nothing is
+recorded for the batch as a whole, so the tray is never filed as a success or
+a failure — only counted.
 
-- **Pot up as plants** — the seedlings become ordinary plants, one each,
-  already following the sowing's species and so inheriting its conditions and
-  its watering schedule. They are numbered (*Ocimum basilicum 1*, *2*, *3*)
-  when the sowing has produced more than one, and each keeps a link back to
-  the sowing it came from. Rename them as you like afterwards.
-- **Just count them** — moves the tally without creating anything, for
-  seedlings you gave away, or a tray you are counting now and potting later.
-- **Record** a number that died, or **Give up on the rest** to write off
-  whatever is still under the soil in one go.
+The one button left is **Pot up as plants**, because it does not move a tally,
+it makes things. The seedlings become ordinary plants, one each, already
+following the sowing's species and so inheriting its conditions and its
+watering schedule. They are numbered (*Ocimum basilicum 1*, *2*, *3*) when the
+sowing has produced more than one, and each keeps a link back to the sowing it
+came from. Rename them as you like afterwards.
+
+Potting up takes from the seedlings box first — those came up once and must not
+be counted twice — and only what is left over from the seeds still under the
+soil. Plants standing are shown beside the box rather than in it (*4* · *+ 2
+potted up*), since typing a zero over a plant cannot be what you meant: the
+plant is out there, in a pot, being watered.
 
 Neither box will take more than is actually left in the tray. Editing the batch
 size later is allowed, but it cannot be set below what has already been
@@ -765,7 +773,10 @@ reads as *Not set*. Nothing to migrate either way.
 A **sowing** is a third list of the same shape, and the three are merged by the
 same code on both ends. `count` is how many seeds went in; `sprouted` and
 `dead` are running tallies, and *still trying* is the remainder — there is no
-status field, and no key for it. They are clamped against `count` when read
+status field, and no key for it. `sprouted` is everything that came up, potted
+or not, so the seedlings box on screen is `sprouted` less the plants carrying
+this sowing's id: the plants are the record of themselves, and storing them
+twice would let the two copies disagree. They are clamped against `count` when read
 rather than trusted, because two phones that both potted up the last seedling
 would otherwise merge into a sowing claiming more seedlings than seeds.
 `days` is `null` or absent when no germination time was given, which is what

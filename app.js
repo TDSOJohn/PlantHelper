@@ -2426,36 +2426,47 @@ function renderSeedDetail(id) {
     : '', 'No germination time given');
   expectedVal.classList.toggle('late', t.trying > 0 && late > 0);
 
-  fill($('#q-sprouted'), String(t.up), '0');
-  fill($('#q-dead'), String(t.dead), '0');
+  // Plants standing are seedlings that cannot be typed away, so they are
+  // counted apart from the box and shown beside it: 4 + 2 potted is what
+  // makes the six that came up add up against the rest of the tray.
+  const mine = live().filter((p) => p.sowingId === sowing.id).sort(byName);
+  const potted = mine.length;
+
+  complain('#q-count-error', '');
+  complain('#q-pot-error', '');
+
+  setTally($('#q-sprouted'), Math.max(0, t.up - potted), t.sown - potted - t.dead);
+  setTally($('#q-dead'), t.dead, t.sown - t.up);
+  $('#q-potted').textContent = potted ? '+ ' + potted + ' potted up' : '';
+
+  $('#q-sprouted').onchange = () => editTally(sowing.id, 'up');
+  $('#q-dead').onchange = () => editTally(sowing.id, 'dead');
+
   fill($('#q-trying'), t.trying > 0 ? String(t.trying) : 'None — this sowing is finished', '0');
 
   renderBar($('#q-bar'), t);
   fillSplit($('#q-bar-text'), t);
   $('#q-bar-wrap').hidden = t.sown < 1;
 
-  // Nothing left under the soil, nothing left to record.
-  const record = $('#q-record');
-  record.hidden = t.trying < 1;
-  $('#q-record-error').hidden = true;
-  if (!record.hidden) {
-    for (const box of [$('#q-up-n'), $('#q-dead-n')]) {
-      box.max = t.trying;
-      box.value = 1;
+  // Nothing left that could become a plant, nothing to pot up. The boxes
+  // above stay open either way: a finished sowing is exactly the one whose
+  // figures you may need to correct.
+  const room = t.sown - potted - t.dead;
+  const pot = $('#q-pot');
+  pot.hidden = room < 1;
+  if (!pot.hidden) {
+    // Clamped rather than reset: a sync landing between typing a number and
+    // tapping the button must not change the number the button is about.
+    const box = $('#q-up-n');
+    box.max = room;
+    if (document.activeElement !== box) {
+      box.value = Math.min(whole(box.value) || 1, room);
     }
-    $('#q-up-plant').onclick = () => recordSprouted(sowing.id, $('#q-up-n').value, true);
-    $('#q-up-only').onclick = () => recordSprouted(sowing.id, $('#q-up-n').value, false);
-    $('#q-dead-add').onclick = () => recordDead(sowing.id, $('#q-dead-n').value);
-    $('#q-dead-rest').onclick = () => {
-      const rest = tally(sowing).trying;
-      if (!confirm(`Write off the ${rest} seed${rest === 1 ? '' : 's'} still in this tray?`)) return;
-      recordDead(sowing.id, rest);
-    };
+    $('#q-up-plant').onclick = () => potUpSome(sowing.id, box.value);
   }
 
   fill($('#q-notes'), sowing.notes, 'No notes');
 
-  const mine = live().filter((p) => p.sowingId === sowing.id).sort(byName);
   const ul = $('#q-plants');
   ul.textContent = '';
   for (const plant of mine) ul.appendChild(plantRow(plant, today, false));
@@ -2476,33 +2487,69 @@ function renderSeedDetail(id) {
   show('seed-detail', sowingName(sowing), true);
 }
 
-/* ---------- recording an outcome ---------- */
+/* ---------- what came of it ---------- */
 
-/** Complains in the fieldset rather than in the status bar, next to the box. */
-function recordProblem(message) {
-  const line = $('#q-record-error');
+/**
+ * Complains next to the box it is about rather than in the status bar, which
+ * sits at the top of the screen and would be off it by the time you have
+ * scrolled down to the tallies.
+ */
+function complain(where, message) {
+  const line = $(where);
   line.textContent = message;
   line.hidden = !message;
-  return !message;
 }
 
 /**
- * Reads one of the two number boxes, clamped to what is actually left.
- * Returns 0 and complains when it does not read as a number of seeds.
+ * Puts a figure in its box, unless that box is the one being typed into: a
+ * sync landing mid-edit must not reach up and change the number under your
+ * thumb. The ceiling goes on as well, so the phone keypad's own stepper
+ * cannot climb past what the tray holds.
  */
-function readOutcome(sowing, raw) {
-  const trying = tally(sowing).trying;
-  const n = Math.floor(Number(String(raw).trim()));
-  if (!isFinite(n) || n < 1) {
-    recordProblem('That does not read as a number of seeds.');
-    return 0;
-  }
-  if (n > trying) {
-    recordProblem(`There ${trying === 1 ? 'is' : 'are'} only ${trying} left in this sowing.`);
-    return 0;
-  }
-  recordProblem('');
-  return n;
+function setTally(box, n, max) {
+  box.max = Math.max(0, max);
+  box.classList.remove('invalid');
+  if (document.activeElement !== box) box.value = n;
+}
+
+/** How many plants this sowing has produced and still has standing. */
+const pottedFrom = (sowing) => live().filter((p) => p.sowingId === sowing.id).length;
+
+/**
+ * Takes one of the two tallies as typed.
+ *
+ * `which` is 'up' for the seedlings box, which holds only the ones that have
+ * not been potted up: plants are seedlings the tray has already accounted
+ * for, and typing 0 over them would lose the fact that they ever came up.
+ * The stored figure stays the whole of what came up, potted or not.
+ */
+function editTally(id, which) {
+  const sowing = sowings.find((x) => x.id === id && !x.deletedAt);
+  if (!sowing) return;
+
+  const box = $(which === 'dead' ? '#q-dead' : '#q-sprouted');
+  const t = tally(sowing);
+  const potted = pottedFrom(sowing);
+
+  // Everything this box is not allowed to spend: the other tally, and, for
+  // the seedlings box, the plants standing in the ground.
+  const room = t.sown - (which === 'dead' ? t.up : potted + t.dead);
+  const n = Math.floor(Number(String(box.value).trim()));
+
+  const problem =
+    !isFinite(n) || n < 0 ? 'That does not read as a number of seeds.'
+    : n > room ? (room === 0
+        ? 'Every seed in this sowing is already accounted for.'
+        : `There ${room === 1 ? 'is' : 'are'} only ${room} left to account for.`)
+    : '';
+
+  box.classList.toggle('invalid', !!problem);
+  complain('#q-count-error', problem);
+  if (problem) return;      // left as typed, so the digit can be corrected
+
+  sowing[which === 'dead' ? 'dead' : 'sprouted'] = which === 'dead' ? n : potted + n;
+  sowing.updatedAt = new Date().toISOString();
+  commit();
 }
 
 /**
@@ -2516,7 +2563,7 @@ function potUp(sowing, n) {
   const parent = sowingSpecies(sowing);
   const speciesName = (parent && parent.name) || sowing.species || '';
   const base = speciesName || 'Seedling';
-  const existing = live().filter((p) => p.sowingId === sowing.id).length;
+  const existing = pottedFrom(sowing);
   const now = new Date().toISOString();
 
   for (let i = 0; i < n; i++) {
@@ -2535,33 +2582,37 @@ function potUp(sowing, n) {
   }
 }
 
-function recordSprouted(id, raw, alsoPotUp) {
+/**
+ * Pot up n seedlings and account for them.
+ *
+ * Seedlings already counted are promoted first — they came up once and must
+ * not be counted twice — and only what is left over is taken from the seeds
+ * still under the soil. Which is what `max` says: what came up is never less
+ * than the number of plants that came out of it.
+ */
+function potUpSome(id, raw) {
   const sowing = sowings.find((x) => x.id === id && !x.deletedAt);
   if (!sowing) return;
 
-  const n = readOutcome(sowing, raw);
-  if (!n) return;
+  const t = tally(sowing);
+  const potted = pottedFrom(sowing);
+  const room = t.sown - potted - t.dead;
+  const n = Math.floor(Number(String(raw).trim()));
 
-  if (alsoPotUp) potUp(sowing, n);
-  sowing.sprouted = tally(sowing).up + n;
+  if (!isFinite(n) || n < 1) {
+    return complain('#q-pot-error', 'That does not read as a number of seedlings.');
+  }
+  if (n > room) {
+    return complain('#q-pot-error',
+      `There ${room === 1 ? 'is' : 'are'} only ${room} left to pot up.`);
+  }
+
+  complain('#q-pot-error', '');
+  potUp(sowing, n);
+  sowing.sprouted = Math.max(t.up, potted + n);
   sowing.updatedAt = new Date().toISOString();
   commit();
-
-  setStatus(alsoPotUp
-    ? (n === 1 ? 'Potted up 1 seedling.' : 'Potted up ' + n + ' seedlings.')
-    : (n === 1 ? '1 seedling counted.' : n + ' seedlings counted.'), false);
-}
-
-function recordDead(id, raw) {
-  const sowing = sowings.find((x) => x.id === id && !x.deletedAt);
-  if (!sowing) return;
-
-  const n = readOutcome(sowing, raw);
-  if (!n) return;
-
-  sowing.dead = tally(sowing).dead + n;
-  sowing.updatedAt = new Date().toISOString();
-  commit();
+  setStatus(n === 1 ? 'Potted up 1 seedling.' : 'Potted up ' + n + ' seedlings.', false);
 }
 
 /* ---------- sowing something, and editing what was sown ---------- */
