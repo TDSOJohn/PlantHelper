@@ -323,6 +323,12 @@ Looking to see whether anything is through is a different errand from watering,
 and there is nothing to tick off without looking first, so the group has no ✓
 buttons.
 
+The group keeps the same shape as the watering one above it, down to the line
+saying *Nothing due to come up today* — a day with nothing to look at is worth
+being told about, and a group that vanished on the quiet days would leave you
+wondering whether it had checked. It appears once anything has been sown, and
+not before.
+
 Leave the days empty and the sowing simply never turns up there. On a new
 sowing the box is filled in from the last sowing of the same thing, since how
 long a seed takes is a fact about the seed.

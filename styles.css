@@ -159,6 +159,17 @@ main {
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
+/* A second group needs air above its heading, and the first must not have any
+   — it would show as a dent in the top of the page. A blanket margin-top
+   cannot tell them apart, because the group above is emptied and hidden
+   rather than removed and so is still there as far as a selector is
+   concerned. These three ask whether anything is actually up there: a list
+   with an item in it, a resting line that is being shown, a row of buttons.
+   `:empty` counts whitespace as content, so the empty `<ul>`s in the markup
+   are written closed on the same line and have to stay that way. */
+.row + .section,
+.list:not(:empty) ~ .section,
+.resting:not([hidden]) ~ .section { margin-top: 24px; }
 
 .list { margin: 0; padding: 0; list-style: none; }
 
@@ -341,7 +352,10 @@ a.from { color: var(--accent); font-style: normal; text-decoration: underline; }
 
 .form label {
   display: block;
-  margin: 16px 0 6px;
+  /* 14px below, matching `.inline` and `.seg`: at 6px a label heading a
+     stretch of the form — Notes, at the foot of the species page — read as
+     cramped beside the legends above it. */
+  margin: 16px 0 14px;
   font-size: 14px;
   font-weight: 600;
 }
@@ -449,8 +463,13 @@ input.invalid { border-color: var(--danger); }
 .seg, .days {
   display: flex;
   gap: 6px;
+  /* The same 14px `.inline` leaves, so that a legend, a row of numbers and a
+     row of choices are all the same distance from what they sit under. Only
+     `.days` used to carry it, which left "Light" and "Watering schedule"
+     touching the heading and the hours box above them. */
+  margin-top: 14px;
 }
-.days { flex-wrap: wrap; margin-top: 14px; }
+.days { flex-wrap: wrap; }
 
 .seg label, .days label {
   position: relative;
@@ -544,6 +563,12 @@ input.invalid { border-color: var(--danger); }
   gap: 6px;
   margin: 6px 0 0;
 }
+/* The pills summarise the sentence underneath, so they must not touch it:
+   without this they sit flush against the box and read as its top edge.
+   Only where a sentence follows — down a list of sixty the row ends on its
+   marks, and space below them would be space inside the card. */
+.flags + .value { margin-top: 8px; }
+
 .flag {
   padding: 1px 8px;
   border: 1px solid var(--line);

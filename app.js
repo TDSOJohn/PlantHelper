@@ -838,12 +838,17 @@ function renderToday() {
   const seedList = $('#today-seeds');
   seedList.textContent = '';
   for (const sowing of seeds) seedList.appendChild(sowingRow(sowing, today));
-  $('#today-seeds-heading').hidden = seeds.length === 0;
 
   const hasPlants = all.length > 0;
-  $('#no-plants').hidden = hasPlants || seeds.length > 0;
+  const hasSown = liveSowings().length > 0;
+
   $('#today-heading').hidden = !hasPlants;
   $('#today-empty').hidden = !hasPlants || due.length > 0;
+  $('#today-seeds-heading').hidden = !hasSown;
+  $('#today-seeds-empty').hidden = !hasSown || seeds.length > 0;
+
+  // Nothing sown and nothing growing is the only genuinely empty day.
+  $('#no-plants').hidden = hasPlants || hasSown;
 
   const total = due.length + seeds.length;
   show('list', total ? `Today (${total})` : 'Today', false);
