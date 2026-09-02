@@ -2,9 +2,14 @@
 
 A personal database of the plants I own, served from a Raspberry Pi on the home
 network. A tab bar moves between **Today** (what needs water), **All plants**,
-**Species**, **Seeds**, **Add** and **Settings**. Each plant has a name and a
-species, notes, a watering schedule, a photo, the temperatures it likes, and a
-note of whether it lives inside or outside. Figures that are true of a whole
+**Species**, **Seeds**, **Add** and **Settings**. The arrow at the top left
+shows up only on the pages that bar cannot reach — a plant, a species, a
+sowing, the catalogue, and the forms that edit them — because everywhere else
+is already one tap away, and an arrow that unwinds a trail you did not know you
+were leaving only raises the question of where it goes.
+
+Each plant has a name and a species, notes, a watering schedule, a photo, the
+temperatures it likes, and a note of whether it lives inside or outside. Figures that are true of a whole
 kind of plant can live on a **species** record instead, and be shared by every
 plant of that kind. Seeds are tracked before they are plants at all: a
 [sowing](#seeds) records how many went in and how many came up, and keeps the

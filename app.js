@@ -688,17 +688,30 @@ function route() {
   return (location.hash || '#/').slice(1);
 }
 
-function show(view, title, canGoBack) {
+/**
+ * Draw one view, and work out from the route whether it needs a way back.
+ *
+ * A page the bar at the bottom goes straight to has nothing to go back to —
+ * the bar is already the way out, and an arrow that unwinds a trail you did
+ * not know you were leaving only invites the question of where it goes. So
+ * the back button appears on exactly the pages the bar cannot reach: a plant,
+ * a species, a sowing, the catalogue, and the forms that edit them. That is
+ * the same question as which tab is lit, and is answered in the same loop.
+ */
+function show(view, title) {
   for (const name of VIEWS) {
     $('#view-' + name).hidden = name !== view;
   }
   $('#title').textContent = title;
-  $('#back').hidden = !canGoBack;
 
   const path = route();
+  let onTab = false;
   for (const tab of $$('.tab')) {
-    tab.classList.toggle('active', tab.getAttribute('data-tab') === path);
+    const active = tab.getAttribute('data-tab') === path;
+    tab.classList.toggle('active', active);
+    onTab = onTab || active;
   }
+  $('#back').hidden = onTab;
 
   $('main').scrollTop = 0;
 }
@@ -851,7 +864,7 @@ function renderToday() {
   $('#no-plants').hidden = hasPlants || hasSown;
 
   const total = due.length + seeds.length;
-  show('list', total ? `Today (${total})` : 'Today', false);
+  show('list', total ? `Today (${total})` : 'Today');
 }
 
 function renderAll() {
@@ -862,7 +875,7 @@ function renderAll() {
   ul.textContent = '';
   for (const p of items) ul.appendChild(plantRow(p, today, false));
 
-  show('all', `All plants (${items.length})`, true);
+  show('all', `All plants (${items.length})`);
 }
 
 /* ---------- detail ---------- */
@@ -956,7 +969,7 @@ function renderDetail(id) {
     replaceRoute('#/');
   };
 
-  show('detail', p.name, true);
+  show('detail', p.name);
 }
 
 /**
@@ -1394,7 +1407,7 @@ function renderForm(id) {
 
   $('#f-cancel').onclick = () => history.back();
 
-  show('edit', p ? 'Edit plant' : 'New plant', true);
+  show('edit', p ? 'Edit plant' : 'New plant');
   if (!p) setTimeout(() => $('#f-name').focus(), 50);
 }
 
@@ -1442,7 +1455,7 @@ function renderSpecies() {
   }
 
   $('#no-species').hidden = items.length > 0;
-  show('species', items.length ? `Species (${items.length})` : 'Species', false);
+  show('species', items.length ? `Species (${items.length})` : 'Species');
 }
 
 /**
@@ -1509,7 +1522,7 @@ function renderSpeciesDetail(id) {
   open.hidden = !record.catalogId;
   if (record.catalogId) open.href = '#/c/' + encodeURIComponent(record.catalogId);
 
-  show('species-detail', 'Species', true);
+  show('species-detail', 'Species');
 }
 
 /**
@@ -1641,7 +1654,7 @@ function renderSpeciesForm(id, entry) {
 
   $('#sp-cancel').onclick = () => history.back();
 
-  show('species-edit', record ? 'Edit species' : 'New species', true);
+  show('species-edit', record ? 'Edit species' : 'New species');
   // Not when the catalogue has just filled the name in: there is nothing to
   // type, and on a phone the keyboard would cover what it filled in.
   if (!record && !entry) setTimeout(() => $('#sp-name').focus(), 50);
@@ -2008,13 +2021,13 @@ function renderCatalog() {
   // The boxes are left exactly as they were: coming back from an entry should
   // land on the search that found it, not on a blank form.
   queueCatalogSearch(0);
-  show('catalog', 'Catalogue', true);
+  show('catalog', 'Catalogue');
 }
 
 /* ---------- one entry ---------- */
 
 async function renderCatalogEntry(pageId) {
-  show('catalog-detail', 'Catalogue', true);
+  show('catalog-detail', 'Catalogue');
 
   const fields = ['#c-title', '#c-binomial', '#c-temp', '#c-humidity', '#c-ph',
                   '#c-light', '#c-height', '#c-family', '#c-zone', '#c-flags',
@@ -2392,7 +2405,7 @@ function renderSeeds() {
     for (const group of stats) box.appendChild(tallyBlock(group, false));
   }
 
-  show('seeds', open.length ? `Seeds (${open.length})` : 'Seeds', false);
+  show('seeds', open.length ? `Seeds (${open.length})` : 'Seeds');
 }
 
 /* ---------- one sowing ---------- */
@@ -2489,7 +2502,7 @@ function renderSeedDetail(id) {
     replaceRoute('#/seeds');       // Back must not return to what was deleted
   };
 
-  show('seed-detail', sowingName(sowing), true);
+  show('seed-detail', sowingName(sowing));
 }
 
 /* ---------- what came of it ---------- */
@@ -2754,7 +2767,7 @@ function renderSeedForm(id) {
 
   $('#q-f-cancel').onclick = () => history.back();
 
-  show('seed-edit', sowing ? 'Edit sowing' : 'Sow seeds', true);
+  show('seed-edit', sowing ? 'Edit sowing' : 'Sow seeds');
   if (!sowing) setTimeout(() => $('#q-f-species').focus(), 50);
 }
 
@@ -2781,7 +2794,7 @@ function renderSettings() {
     `species and ${sown} sowing${sown === 1 ? '' : 's'} cached on this device` +
     (dirty ? ', with changes waiting to sync.' : '.');
 
-  show('settings', 'Settings', true);
+  show('settings', 'Settings');
 }
 
 /* =========================================================================
