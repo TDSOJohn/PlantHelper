@@ -248,13 +248,17 @@ which is a few times a year. Into the Pi's clone, not into `/var/lib`, so that
 `install.sh` still stages and restarts it properly:
 
 ```sh
-# on the machine that built it
+# on the machine that built it: one copy for local development,
 cp ../plants_db/plants.sqlite data/plants.full.sqlite
+# and one for the Pi, into its clone
 scp data/plants.full.sqlite plants.local:plants/data/plants.full.sqlite
 
 # then on the Pi, as usual
 cd plants && sudo ./install.sh
 ```
+
+The `scp` on its own is the whole update where you do not run the app locally,
+which is what [step 2](#2-install) shows.
 
 It is ignored by git at both ends, so a `git pull` on the Pi leaves it alone
 and `git status` stays clean. A pull cannot undo the copy either: what it
@@ -642,9 +646,22 @@ Boot the Pi and `ssh <user>@plants.local`. iOS, macOS and Linux all resolve
 ### 2. Install
 
 ```sh
+# on the Pi
 git clone <this repo> plants && cd plants
+
+# on the machine that built the catalogue — only if you want pfaf's figures,
+# which do not travel in the repo. Into the clone, not into /var/lib, so that
+# install.sh still stages and restarts it properly.
+scp ../plants_db/plants.sqlite plants.local:plants/data/plants.full.sqlite
+
+# back on the Pi
 sudo ./install.sh
 ```
+
+Skip the middle command and you get the Wikipedia-only catalogue that came
+with the clone, which is a working one. It is the same `scp` every time the
+catalogue is rebuilt after this, and [two catalogues](#two-catalogues) is the
+section about why.
 
 That copies the app to `/opt/plants`, creates a system user, puts the data in
 `/var/lib/plants`, and enables the service. Override the defaults if you like:

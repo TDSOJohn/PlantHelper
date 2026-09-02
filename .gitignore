@@ -1,1 +1,6 @@
 __pycache__/
+
+# The catalogue built with pfaf.org data. `data/plants.sqlite` — the
+# Wikipedia-only build — stays in the repo; this one cannot, because pfaf.org
+# grants no reuse licence. See "Two catalogues" in the README.
+data/plants.full.sqlite
