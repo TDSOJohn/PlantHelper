@@ -40,11 +40,18 @@
     <ul id="today-seeds" class="list"></ul>
     <p id="today-seeds-empty" class="resting" hidden>Nothing due to come up today.</p>
 
-    <p id="no-plants" class="empty" hidden>No plants yet.<br><span>Tap <b>Add</b> to enter your first one.</span></p>
+    <p id="no-plants" class="empty" hidden>No plants yet.<br><span>Add your first one from <b>Plants</b>.</span></p>
   </section>
 
-  <!-- ---------- all plants ---------- -->
+  <!-- ---------- all plants ----------
+       Adding a plant starts here rather than from the tab bar, as adding a
+       species and sowing seeds do on their own pages. It is the one thing you
+       do to this list, and it belongs above the list it changes; in the bar it
+       was the only item that acted rather than navigated. -->
   <section id="view-all" class="view" hidden>
+    <div class="row leading">
+      <a class="btn primary" href="#/new">Add a plant</a>
+    </div>
     <ul id="plant-list" class="list"></ul>
   </section>
 
@@ -261,13 +268,12 @@
 
   <!-- ---------- species ---------- -->
   <section id="view-species" class="view" hidden>
+    <div class="row leading">
+      <a class="btn primary" href="#/s/new">Add a species</a>
+    </div>
     <ul id="species-list" class="list"></ul>
     <p id="no-species" class="empty" hidden>No species yet.<br><span>A species holds the
       conditions and the watering schedule shared by every plant of that kind.</span></p>
-    <div class="row">
-      <a class="btn primary" href="#/s/new">Add a species</a>
-      <a class="btn" href="#/catalog">Browse the catalogue</a>
-    </div>
   </section>
 
   <!-- ---------- one species ----------
@@ -338,8 +344,9 @@
 
   <!-- ---------- the reference catalogue ----------
        Read-only, and the one part of the app that needs the Pi: the 5,065
-       entries live in data/plants.sqlite and are searched there, not held on
-       the phone. -->
+       entries live in a SQLite file there and are searched there, not held on
+       the phone. Reached from the bar rather than from Species, which is why
+       this is the one read-only page with no back arrow. -->
   <section id="view-catalog" class="view" hidden>
     <form id="cat-form" class="form" novalidate>
       <label for="cat-q">Name</label>
@@ -627,6 +634,10 @@
        are still under the soil — so it carries running tallies rather than a
        status, and the percentages below are per seed, not per batch. -->
   <section id="view-seeds" class="view" hidden>
+    <div class="row leading">
+      <a class="btn primary" href="#/seed/new">Sow seeds</a>
+    </div>
+
     <h2 id="seeds-open-heading" class="section" hidden>Still coming up</h2>
     <ul id="seeds-open" class="list"></ul>
 
@@ -635,10 +646,6 @@
 
     <p id="no-seeds" class="empty" hidden>No seeds sown.<br><span>A sowing records how
       many seeds went in, when, and how many of them came up.</span></p>
-
-    <div class="row">
-      <a class="btn primary" href="#/seed/new">Sow seeds</a>
-    </div>
 
     <h2 id="seeds-stats-heading" class="section" hidden>How they did</h2>
     <div id="seeds-stats"></div>
@@ -821,9 +828,11 @@
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h18"/><ellipse cx="8" cy="15" rx="2.6" ry="3.4" transform="rotate(-25 8 15)"/><ellipse cx="16" cy="16.5" rx="2.6" ry="3.4" transform="rotate(20 16 16.5)"/></svg>
     <span>Seeds</span>
   </a>
-  <a class="tab" href="#/new" data-tab="/new">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-    <span>Add</span>
+  <a class="tab" href="#/catalog" data-tab="/catalog">
+    <!-- An open book. The one tab that is somebody else's writing rather than
+         your own records, which is also why it is the one that needs the Pi. -->
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7c-1.8-1.3-4-2-6.5-2v12c2.5 0 4.7.7 6.5 2 1.8-1.3 4-2 6.5-2V5c-2.5 0-4.7.7-6.5 2z"/><path d="M12 7v12"/></svg>
+    <span>Catalogue</span>
   </a>
   <a class="tab" href="#/settings" data-tab="/settings">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5h16M4 15.5h16M9.5 6v5M15.5 13v5"/></svg>

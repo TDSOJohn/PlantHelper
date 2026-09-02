@@ -701,8 +701,11 @@ function route() {
  * the bar is already the way out, and an arrow that unwinds a trail you did
  * not know you were leaving only invites the question of where it goes. So
  * the back button appears on exactly the pages the bar cannot reach: a plant,
- * a species, a sowing, the catalogue, and the forms that edit them. That is
- * the same question as which tab is lit, and is answered in the same loop.
+ * a species, a sowing, a catalogue entry, and the forms that add or edit them.
+ * That is the same question as which tab is lit, and is answered in the same
+ * loop, so the bar is the only thing that has to be edited when one of these
+ * moves. The new-plant form gained an arrow for free the moment it stopped
+ * being a tab; the catalogue search lost one the moment it became one.
  */
 function show(view, title) {
   for (const name of VIEWS) {

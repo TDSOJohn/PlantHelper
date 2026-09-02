@@ -83,6 +83,10 @@ body {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+/* Six labels share the width, and "Catalogue" is the longest of them. Wrapping
+   is the failure worth preventing: a second line makes that one tab taller than
+   its neighbours and takes the whole bar with it. */
+.tab span { white-space: nowrap; }
 .tab.active { color: var(--accent); }
 .tab:active { opacity: 0.6; }
 
@@ -166,8 +170,13 @@ main {
    concerned. These three ask whether anything is actually up there: a list
    with an item in it, a resting line that is being shown, a row of buttons.
    `:empty` counts whitespace as content, so the empty `<ul>`s in the markup
-   are written closed on the same line and have to stay that way. */
-.row + .section,
+   are written closed on the same line and have to stay that way.
+
+   A leading row is the exception, and it is the same exception again: it sits
+   at the very top, so a heading under it *is* the first thing on the page, and
+   the 16px the row already carries below is the whole gap. Without the
+   :not(), moving Sow seeds to the top of Seeds put the dent back. */
+.row:not(.leading) + .section,
 .list:not(:empty) ~ .section,
 .resting:not([hidden]) ~ .section { margin-top: 24px; }
 
@@ -640,6 +649,13 @@ input.invalid { border-color: var(--danger); }
   gap: 10px;
   margin-top: 24px;
 }
+/* A row that opens a view instead of closing one: Add a plant, Add a species,
+   Sow seeds — one at the top of each page that owns a kind of record. The 24px
+   above is what separates a row of buttons from the content it follows;
+   at the top of a page there is nothing to follow and it reads as a dent, the
+   same way a first .section heading would. The gap moves underneath, where the
+   list or the first heading is. */
+.row.leading { margin: 0 0 16px; }
 
 .btn {
   flex: 1 1 auto;

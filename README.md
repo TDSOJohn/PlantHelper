@@ -2,11 +2,31 @@
 
 A personal database of the plants I own, served from a Raspberry Pi on the home
 network. A tab bar moves between **Today** (what needs water), **All plants**,
-**Species**, **Seeds**, **Add** and **Settings**. The arrow at the top left
-shows up only on the pages that bar cannot reach — a plant, a species, a
-sowing, the catalogue, and the forms that edit them — because everywhere else
-is already one tap away, and an arrow that unwinds a trail you did not know you
-were leaving only raises the question of where it goes.
+**Species**, **Seeds**, **Catalogue** and **Settings**. The arrow at the top
+left shows up only on the pages that bar cannot reach — a plant, a species, a
+sowing, a catalogue entry, and the forms that add or edit them — because
+everywhere else is already one tap away, and an arrow that unwinds a trail you
+did not know you were leaving only raises the question of where it goes.
+
+A list you can add to opens with the button that adds to it: **Add a plant** at
+the top of **All plants**, **Add a species** at the top of **Species**, **Sow
+seeds** at the top of **Seeds**. Adding a plant used to be a tab of its own,
+which made it the one item in the bar that *did* something rather than going
+somewhere — the one you could press by accident and have to back out of. Each
+button now sits above the list it changes, and the three pages that own a kind
+of record are the three pages that make one.
+
+The bar is for going places, and it got the [catalogue](#catalogue) in exchange.
+That was a button at the foot of **Species**, which is a strange place for it:
+5,065 entries you can read without owning a plant are not a footnote to the
+handful of species you keep, and reaching them meant opening a list first. It
+is a tab now, and **Add a species** has the top of that page to itself.
+
+Both moves fell out of the same rule rather than being coded. The arrow shows
+on a page the bar cannot reach, so the new-plant form gained one the moment it
+stopped being a tab and the catalogue search lost one the moment it became one.
+All three *new* forms behave the same way now, where the plant one used to be
+the odd one out.
 
 Each plant has a name and a species, notes, a watering schedule, a photo, the
 temperatures it likes, and a note of whether it lives inside or outside. Figures that are true of a whole
@@ -206,7 +226,7 @@ None of the three is true of an encyclopedia.
 
 5,065 species built by [../plants_db](../plants_db) — the four condition groups
 this app uses, plus a height and three yes-or-nothing marks that only make
-sense on a catalogue. **Species → Browse the catalogue** searches it.
+sense on a catalogue. The **Catalogue** tab searches it.
 
 Two sources are behind those rows. Every one of them began as an English
 Wikipedia article; **1,132** have since been filled out from
