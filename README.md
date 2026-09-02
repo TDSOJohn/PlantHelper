@@ -2,11 +2,13 @@
 
 A personal database of the plants I own, served from a Raspberry Pi on the home
 network. A tab bar moves between **Today** (what needs water), **All plants**,
-**Add**, **Species** and **Settings**. Each plant has a name and a species,
-notes, a watering schedule, a photo, the temperatures it likes, and a note of
-whether it lives inside or outside. Figures that are true of a whole kind of
-plant can live on a **species** record instead, and be shared by every plant of
-that kind.
+**Species**, **Seeds**, **Add** and **Settings**. Each plant has a name and a
+species, notes, a watering schedule, a photo, the temperatures it likes, and a
+note of whether it lives inside or outside. Figures that are true of a whole
+kind of plant can live on a **species** record instead, and be shared by every
+plant of that kind. Seeds are tracked before they are plants at all: a
+[sowing](#seeds) records how many went in and how many came up, and keeps the
+running score for each species.
 
 No frameworks and no dependencies: a static page plus a ~250-line Python
 standard-library server. Nothing to install on the Pi beyond what Raspberry Pi
@@ -263,6 +265,75 @@ linking to them, so that re-mining a newer dump can never silently change the
 care figures of a plant you own. See
 [filling one in from the catalogue](#filling-one-in-from-the-catalogue).
 
+## Seeds
+
+A **sowing** is a batch: so many seeds of one kind, into one tray, on one day.
+It is deliberately not a plant. A plant is a thing you water; a sowing is a
+small experiment whose result arrives a few seeds at a time over a fortnight,
+and which may produce six plants, or one, or none.
+
+So a sowing does not have a status. It has counts:
+
+| | |
+|---|---|
+| **Sowed** | how many seeds went in, and the day they did |
+| **Up in about** | what the packet promises, in days — optional |
+| **Came up** | how many have appeared since |
+| **Died** | how many rotted, or simply never came |
+
+*Still trying* is what is left over, and the sowing is finished when it reaches
+zero. Nothing is ever recorded for the batch as a whole, which is the only way
+*four of the twelve came up* can be written down honestly. A single status
+would force that same tray to be filed as either a success or a failure, and
+the percentages further down would then be counting trays rather than seeds.
+
+### Recording what happened
+
+Both numbers are entered on the sowing's own page, because adding to them is
+the everyday act and it is one number and one tap:
+
+- **Pot up as plants** — the seedlings become ordinary plants, one each,
+  already following the sowing's species and so inheriting its conditions and
+  its watering schedule. They are numbered (*Ocimum basilicum 1*, *2*, *3*)
+  when the sowing has produced more than one, and each keeps a link back to
+  the sowing it came from. Rename them as you like afterwards.
+- **Just count them** — moves the tally without creating anything, for
+  seedlings you gave away, or a tray you are counting now and potting later.
+- **Record** a number that died, or **Give up on the rest** to write off
+  whatever is still under the soil in one go.
+
+Neither box will take more than is actually left in the tray. Editing the batch
+size later is allowed, but it cannot be set below what has already been
+accounted for — that would make the percentages lie.
+
+### When to go and look
+
+Give a sowing a germination time and it appears on the home screen under
+**Seeds due** once that day arrives, in its own group under the plants to
+water, and stays there — `4 days late` — until every seed is accounted for.
+Looking to see whether anything is through is a different errand from watering,
+and there is nothing to tick off without looking first, so the group has no ✓
+buttons.
+
+Leave the days empty and the sowing simply never turns up there. On a new
+sowing the box is filled in from the last sowing of the same thing, since how
+long a seed takes is a fact about the seed.
+
+### How they did
+
+The **Seeds** tab ends with one block per species: a bar in three parts and the
+three percentages under it, *per seed rather than per batch*, pooled across
+every sowing of that kind. The same block appears on the species' own page
+under *From seed*. With more than one species there is an *All seeds* total
+above the rest.
+
+Sowings group by species record where there is one and by the name that was
+typed where there is not, so a tray sown before you had the record joins its
+own species once you add one — no editing required. A sowing keeps its name
+either way.
+
+Deleting a sowing keeps the plants it produced.
+
 ## Watering schedules
 
 A plant can have one of two schedules, or none at all:
@@ -403,9 +474,11 @@ worse than leaving 50 kB on a memory card.
 The Pi serves both the page and its data, so everything is same-origin: no
 tokens, no CORS, no cloud account.
 
-    GET    /api/plants      ->  {"version": 2, "updatedAt": "...",
-                                 "species": [...], "plants": [...]}
-    PUT    /api/plants      <-  {"species": [...], "plants": [...]}
+    GET    /api/plants      ->  {"version": 3, "updatedAt": "...",
+                                 "species": [...], "plants": [...],
+                                 "sowings": [...]}
+    PUT    /api/plants      <-  {"species": [...], "plants": [...],
+                                 "sowings": [...]}
     PUT    /api/photo/<id>  <-  raw JPEG bytes
     DELETE /api/photo/<id>
     GET    /photos/<id>.jpg
@@ -415,11 +488,13 @@ tokens, no CORS, no cloud account.
     GET    /api/catalog/<pageId>                ->  one entry in full
 
 A `PUT` is **merged** with what is already on disk rather than replacing it —
-union by id, most recently updated copy wins, deletes are tombstones. Species
-and plants are two lists of the same shape and go through the same merge; a
-client that sends no `species` key at all leaves the ones on disk alone. So
-two phones edited while apart both keep their changes, in whatever order they
-sync, and there is no revision number for the client to juggle.
+union by id, most recently updated copy wins, deletes are tombstones. Species,
+plants and sowings are three lists of the same shape and go through the same
+merge; a client that sends no `species` or `sowings` key at all leaves the ones
+on disk alone, which is how a phone running an older copy of the page stays
+safe to sync. So two phones edited while apart both keep their changes, in
+whatever order they sync, and there is no revision number for the client to
+juggle.
 
 The browser keeps a copy in `localStorage`. That is only a cache: it lets the
 app keep working while the Pi reboots or Wi-Fi drops, and any edit made
@@ -582,7 +657,7 @@ usual on an SD card. Prefer `sudo shutdown -h now` over pulling the plug.
 
 ```json
 {
-  "version": 2,
+  "version": 3,
   "updatedAt": "2026-08-19T10:00:00Z",
   "species": [
     {
@@ -624,8 +699,9 @@ usual on an SD card. Prefer `sudo shutdown -h now` over pulling the plug.
     },
     {
       "id": "k9j8h7-a1b2c3",
-      "name": "Basil",
+      "name": "Basil 1",
       "species": "Ocimum basilicum",
+      "sowingId": "sw-4c5d6e",
       "place": "outside",
       "temps": { "avgMin": 15 },
       "humidity": null,
@@ -635,6 +711,21 @@ usual on an SD card. Prefer `sudo shutdown -h now` over pulling the plug.
       "water": "",
       "notes": "Kitchen windowsill.",
       "createdAt": "2026-08-19T10:00:00Z",
+      "updatedAt": "2026-08-19T10:00:00Z"
+    }
+  ],
+  "sowings": [
+    {
+      "id": "sw-4c5d6e",
+      "species": "Ocimum basilicum",
+      "speciesId": "",
+      "count": 12,
+      "sownOn": "2026-08-12",
+      "days": 7,
+      "sprouted": 4,
+      "dead": 3,
+      "notes": "Windowsill propagator.",
+      "createdAt": "2026-08-12T09:00:00Z",
       "updatedAt": "2026-08-19T10:00:00Z"
     }
   ]
@@ -671,8 +762,26 @@ Plants saved before a field existed simply have no key for it — an older
 plant has no `schedule` and never appears in *Water today*, and no `place` and
 reads as *Not set*. Nothing to migrate either way.
 
+A **sowing** is a third list of the same shape, and the three are merged by the
+same code on both ends. `count` is how many seeds went in; `sprouted` and
+`dead` are running tallies, and *still trying* is the remainder — there is no
+status field, and no key for it. They are clamped against `count` when read
+rather than trusted, because two phones that both potted up the last seedling
+would otherwise merge into a sowing claiming more seedlings than seeds.
+`days` is `null` or absent when no germination time was given, which is what
+keeps a sowing off *Seeds due*; `sownOn` is a local date like `lastWatered`.
+`speciesId` works exactly as it does on a plant, except that a sowing carrying
+only a `species` name is matched by that name too, so a tray sown before the
+species record existed joins it as soon as there is one.
+
+`sowingId` on a plant is the sowing it was potted up from. Nothing else about a
+plant reads it — it is what puts the plant under *Plants from this sowing*, and
+it is absent on every plant that was not grown from seed here.
+
 A deleted plant keeps its entry with a `deletedAt` timestamp, so that a phone
-that was offline during the delete cannot bring it back.
+that was offline during the delete cannot bring it back. Species and sowings
+are tombstoned the same way; deleting a sowing does not touch the plants it
+produced.
 
 ## Local development
 

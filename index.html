@@ -31,6 +31,13 @@
     <h2 id="today-heading" class="section">Water today</h2>
     <ul id="today-list" class="list"></ul>
     <p id="today-empty" class="resting" hidden>Nothing to water today.</p>
+
+    <!-- Sowings whose germination window has arrived. The heading carries
+         itself: with nothing due there is no group at all, rather than a
+         second "nothing to do" line under the first. -->
+    <h2 id="today-seeds-heading" class="section" hidden>Seeds due</h2>
+    <ul id="today-seeds" class="list"></ul>
+
     <p id="no-plants" class="empty" hidden>No plants yet.<br><span>Tap <b>Add</b> to enter your first one.</span></p>
   </section>
 
@@ -301,6 +308,13 @@
         <span class="label">Uses</span>
         <p id="sd-flags" class="flags"></p>
         <p id="sd-uses" class="value"></p>
+      </div>
+
+      <!-- Only on a species something has been sown of. -->
+      <div class="field" id="sd-seed" hidden>
+        <span class="label">From seed</span>
+        <div class="bar" id="sd-seed-bar"></div>
+        <p class="value" id="sd-seed-text"></p>
       </div>
 
       <div class="field">
@@ -595,6 +609,156 @@
   </section>
 
   <!-- ---------- settings ---------- -->
+  <!-- ---------- seeds ----------
+       A sowing is a batch: so many seeds of one kind, put in on one day. It
+       is never "done" in one step — a few come up this week, a few rot, a few
+       are still under the soil — so it carries running tallies rather than a
+       status, and the percentages below are per seed, not per batch. -->
+  <section id="view-seeds" class="view" hidden>
+    <h2 id="seeds-open-heading" class="section" hidden>Still coming up</h2>
+    <ul id="seeds-open" class="list"></ul>
+
+    <h2 id="seeds-done-heading" class="section" hidden>Finished</h2>
+    <ul id="seeds-done" class="list"></ul>
+
+    <p id="no-seeds" class="empty" hidden>No seeds sown.<br><span>A sowing records how
+      many seeds went in, when, and how many of them came up.</span></p>
+
+    <div class="row">
+      <a class="btn primary" href="#/seed/new">Sow seeds</a>
+    </div>
+
+    <h2 id="seeds-stats-heading" class="section" hidden>How they did</h2>
+    <div id="seeds-stats"></div>
+  </section>
+
+  <!-- ---------- one sowing ----------
+       The two tallies are recorded from here rather than from a form of their
+       own: adding to them is the everyday act, and it is one number and one
+       tap. Potting up is the same act plus the plants it creates. -->
+  <section id="view-seed-detail" class="view" hidden>
+    <div class="detail">
+      <h2 id="q-name"></h2>
+
+      <div class="facts">
+        <div class="fact">
+          <span class="key">Species</span>
+          <span class="val" id="q-species"></span>
+          <a class="from" id="q-species-from" href="#"></a>
+        </div>
+        <div class="fact">
+          <span class="key">Sown</span>
+          <span class="val" id="q-sown"></span>
+        </div>
+        <div class="fact">
+          <span class="key">Expected</span>
+          <span class="val" id="q-expected"></span>
+        </div>
+        <div class="fact">
+          <span class="key">Came up</span>
+          <span class="val" id="q-sprouted"></span>
+        </div>
+        <div class="fact">
+          <span class="key">Died</span>
+          <span class="val" id="q-dead"></span>
+        </div>
+        <div class="fact">
+          <span class="key">Still trying</span>
+          <span class="val" id="q-trying"></span>
+        </div>
+      </div>
+
+      <div id="q-bar-wrap" class="field">
+        <div class="bar" id="q-bar"></div>
+        <p class="hint" id="q-bar-text"></p>
+      </div>
+
+      <fieldset class="group" id="q-record">
+        <legend>Record what happened</legend>
+        <div class="inline">
+          <input id="q-up-n" type="number" min="1" max="9999" step="1"
+                 inputmode="numeric" value="1" aria-label="How many came up">
+          <span>came up</span>
+        </div>
+        <div class="row">
+          <button type="button" id="q-up-plant" class="btn primary">Pot up as plants</button>
+          <button type="button" id="q-up-only" class="btn">Just count them</button>
+        </div>
+        <p class="hint">Potting up creates one plant for each seedling, already
+          following this species. Counting them only moves the tally.</p>
+
+        <div class="inline">
+          <input id="q-dead-n" type="number" min="1" max="9999" step="1"
+                 inputmode="numeric" value="1" aria-label="How many died">
+          <span>died or never came up</span>
+        </div>
+        <div class="row">
+          <button type="button" id="q-dead-add" class="btn">Record</button>
+          <button type="button" id="q-dead-rest" class="btn danger">Give up on the rest</button>
+        </div>
+        <p id="q-record-error" class="hint error" hidden></p>
+      </fieldset>
+
+      <div class="field">
+        <span class="label">Notes</span>
+        <p id="q-notes" class="value"></p>
+      </div>
+
+      <h3 class="section" id="q-plants-heading" hidden>Plants from this sowing</h3>
+      <ul id="q-plants" class="list"></ul>
+
+      <p id="q-meta" class="meta"></p>
+
+      <div class="row">
+        <a id="q-edit" class="btn" href="#">Edit sowing</a>
+        <button id="q-delete" class="btn danger" type="button">Delete</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------- sow / edit a sowing ---------- -->
+  <section id="view-seed-edit" class="view" hidden>
+    <form id="seed-form" class="form" novalidate>
+      <label for="q-f-species">Species</label>
+      <input id="q-f-species" type="text" maxlength="80"
+             autocomplete="off" autocapitalize="sentences" autocorrect="off"
+             spellcheck="false" placeholder="Ocimum basilicum">
+      <p id="q-f-species-hint" class="hint"></p>
+
+      <fieldset class="group">
+        <legend>The batch</legend>
+        <div class="inline">
+          <span>Sowed</span>
+          <input id="q-f-count" type="number" min="1" max="9999" step="1"
+                 inputmode="numeric" placeholder="12" aria-label="How many seeds">
+          <span>seeds</span>
+        </div>
+        <div class="inline">
+          <span>on</span>
+          <input id="q-f-date" type="date" aria-label="Day they were sown">
+        </div>
+        <div class="inline">
+          <span>Up in about</span>
+          <input id="q-f-days" type="number" min="1" max="365" step="1"
+                 inputmode="numeric" placeholder="7" aria-label="Days to germinate">
+          <span>days</span>
+        </div>
+        <p id="q-f-error" class="hint error" hidden></p>
+        <p class="hint">The days are what the packet promises. Leave them empty and
+          the sowing simply never turns up under <b>Seeds due</b>.</p>
+      </fieldset>
+
+      <label for="q-f-notes">Notes</label>
+      <textarea id="q-f-notes" rows="4"
+                placeholder="Windowsill propagator, sown on damp kitchen roll."></textarea>
+
+      <div class="row">
+        <button type="submit" class="btn primary">Save</button>
+        <button type="button" id="q-f-cancel" class="btn">Cancel</button>
+      </div>
+    </form>
+  </section>
+
   <section id="view-settings" class="view" hidden>
     <div class="form">
       <h2>Server</h2>
@@ -645,6 +809,12 @@
   <a class="tab" href="#/species" data-tab="/species">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5v-8m0 0c0-3 2-5.5 5-6.5 .5 3.5-1.5 6-5 6.5zm0 0C12 9.8 10 7.6 7 6.9c-.4 3 1.4 5.2 5 5.6z"/></svg>
     <span>Species</span>
+  </a>
+  <a class="tab" href="#/seeds" data-tab="/seeds">
+    <!-- Two seeds under the soil line. Deliberately not another sprout: the
+         Species tab next door is already one. -->
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h18"/><ellipse cx="8" cy="15" rx="2.6" ry="3.4" transform="rotate(-25 8 15)"/><ellipse cx="16" cy="16.5" rx="2.6" ry="3.4" transform="rotate(20 16 16.5)"/></svg>
+    <span>Seeds</span>
   </a>
   <a class="tab" href="#/new" data-tab="/new">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>

@@ -11,6 +11,7 @@
 
 const K_PLANTS = 'plantdb.plants.v1';
 const K_SPECIES = 'plantdb.species.v1';
+const K_SOWINGS = 'plantdb.sowings.v1';
 const K_DIRTY  = 'plantdb.dirty.v1';
 
 const API = new URL('api/plants', document.baseURI).href;
@@ -20,6 +21,7 @@ const PHOTO_QUALITY = 0.82;
 
 let plants = read(K_PLANTS, []);
 let species = read(K_SPECIES, []);
+let sowings = read(K_SOWINGS, []);
 let dirty  = read(K_DIRTY, false);   // local changes the server has not seen
 let lastSync = null;
 let lastError = '';
@@ -50,6 +52,7 @@ function write(key, value) {
 function persist() {
   write(K_PLANTS, plants);
   write(K_SPECIES, species);
+  write(K_SOWINGS, sowings);
 }
 
 const uid = () =>
@@ -447,8 +450,8 @@ const signature = (list) =>
       .sort()
       .join('|');
 
-/** A server too old to know about species simply does not mention them. */
-const remoteSpecies = (doc) => (Array.isArray(doc.species) ? doc.species : []);
+/** A server too old to know about a list simply does not mention it. */
+const remoteList = (doc, key) => (Array.isArray(doc[key]) ? doc[key] : []);
 
 async function request(method, payload) {
   const options = { method: method, cache: 'no-store', headers: { Accept: 'application/json' } };
@@ -490,20 +493,24 @@ async function sync(quiet) {
   try {
     let doc;
     if (dirty) {
-      doc = await request('PUT', { plants: plants, species: species });
+      doc = await request('PUT', { plants: plants, species: species, sowings: sowings });
     } else {
       doc = await request('GET');
       // Nothing of ours is missing in the usual case; push only if it is.
       const mergedPlants = merge(plants, doc.plants);
-      const mergedSpecies = merge(species, remoteSpecies(doc));
+      const mergedSpecies = merge(species, remoteList(doc, 'species'));
+      const mergedSowings = merge(sowings, remoteList(doc, 'sowings'));
       if (signature(mergedPlants) !== signature(doc.plants) ||
-          signature(mergedSpecies) !== signature(remoteSpecies(doc))) {
-        doc = await request('PUT', { plants: mergedPlants, species: mergedSpecies });
+          signature(mergedSpecies) !== signature(remoteList(doc, 'species')) ||
+          signature(mergedSowings) !== signature(remoteList(doc, 'sowings'))) {
+        doc = await request('PUT', { plants: mergedPlants, species: mergedSpecies,
+                                     sowings: mergedSowings });
       }
     }
 
     plants = doc.plants;
-    species = remoteSpecies(doc);
+    species = remoteList(doc, 'species');
+    sowings = remoteList(doc, 'sowings');
     indexSpecies();
     persist();
     dirty = false;
@@ -669,11 +676,13 @@ function markWatered(id) {
    Routing — #/ , #/all , #/new , #/p/<id> , #/p/<id>/edit ,
              #/species , #/s/new , #/s/<id> , #/s/<id>/edit ,
              #/s/from/<pageId> ,
+             #/seeds , #/seed/new , #/seed/<id> , #/seed/<id>/edit ,
              #/catalog , #/c/<pageId> , #/settings
    ========================================================================= */
 
 const VIEWS = ['list', 'all', 'detail', 'edit', 'species', 'species-detail',
-               'species-edit', 'catalog', 'catalog-detail', 'settings'];
+               'species-edit', 'seeds', 'seed-detail', 'seed-edit',
+               'catalog', 'catalog-detail', 'settings'];
 
 function route() {
   return (location.hash || '#/').slice(1);
@@ -706,7 +715,8 @@ function replaceRoute(hash) {
 /** Re-render after a background change, without clobbering a half-typed form. */
 function refresh() {
   const path = route();
-  if (path === '/new' || path === '/s/new' || /\/edit$/.test(path)) return;
+  if (path === '/new' || path === '/s/new' || path === '/seed/new') return;
+  if (/\/edit$/.test(path)) return;
   if (/^\/s\/from\/\d+$/.test(path)) return;   // a form half filled from the catalogue
   // The catalogue is not made of plants. Nothing a sync brings back can change
   // what is on screen there, and re-rendering it would re-run the search over
@@ -724,6 +734,8 @@ function render() {
   if (path === '/new') return renderForm(null);
   if (path === '/species') return renderSpecies();
   if (path === '/s/new') return renderSpeciesForm(null);
+  if (path === '/seeds') return renderSeeds();
+  if (path === '/seed/new') return renderSeedForm(null);
   if (path === '/catalog') return renderCatalog();
 
   const entryMatch = path.match(/^\/c\/(\d+)$/);
@@ -731,6 +743,12 @@ function render() {
 
   const filled = path.match(/^\/s\/from\/(\d+)$/);
   if (filled) return renderSpeciesFromCatalog(filled[1]);
+
+  const seedEdit = path.match(/^\/seed\/([^/]+)\/edit$/);
+  if (seedEdit) return renderSeedForm(seedEdit[1]);
+
+  const seedDetail = path.match(/^\/seed\/([^/]+)$/);
+  if (seedDetail) return renderSeedDetail(seedDetail[1]);
 
   const speciesEdit = path.match(/^\/s\/([^/]+)\/edit$/);
   if (speciesEdit) return renderSpeciesForm(speciesEdit[1]);
@@ -808,17 +826,27 @@ function renderToday() {
   const today = todayKey();
   const all = live();
   const due = dueToday(today);
+  const seeds = seedsDue(today);
 
   const ul = $('#today-list');
   ul.textContent = '';
   for (const p of due) ul.appendChild(plantRow(p, today, true));
 
+  // Seeds whose germination window has arrived: a separate group, because
+  // "go and look whether anything is through" is a different errand from
+  // watering, and there is nothing to tick off without looking first.
+  const seedList = $('#today-seeds');
+  seedList.textContent = '';
+  for (const sowing of seeds) seedList.appendChild(sowingRow(sowing, today));
+  $('#today-seeds-heading').hidden = seeds.length === 0;
+
   const hasPlants = all.length > 0;
-  $('#no-plants').hidden = hasPlants;
+  $('#no-plants').hidden = hasPlants || seeds.length > 0;
   $('#today-heading').hidden = !hasPlants;
   $('#today-empty').hidden = !hasPlants || due.length > 0;
 
-  show('list', due.length ? `Today (${due.length})` : 'Today', false);
+  const total = due.length + seeds.length;
+  show('list', total ? `Today (${total})` : 'Today', false);
 }
 
 function renderAll() {
@@ -1453,6 +1481,15 @@ function renderSpeciesDetail(id) {
 
   fill($('#sd-notes'), record.notes, 'No notes');
 
+  // How its seeds have done, pooled across every sowing of it.
+  const seedTotal = sumTallies(seedsOfSpecies(record));
+  const seedBox = $('#sd-seed');
+  seedBox.hidden = seedTotal.sown < 1;
+  if (!seedBox.hidden) {
+    renderBar($('#sd-seed-bar'), seedTotal);
+    fillSplit($('#sd-seed-text'), seedTotal);
+  }
+
   const today = todayKey();
   const mine = live().filter((p) => p.speciesId === record.id).sort(byName);
   const ul = $('#sd-plants');
@@ -2038,6 +2075,633 @@ async function renderCatalogEntry(pageId) {
   add.textContent = existing ? 'Fill in ' + existing.name : 'Add as a species';
 }
 
+/* =========================================================================
+   Seeds
+
+   A sowing is a batch: so many seeds of one kind, put into one tray on one
+   day. It is deliberately not a plant. A plant is a thing you water; a sowing
+   is a small experiment whose result arrives a few seeds at a time over a
+   fortnight, and which may never produce a plant at all.
+
+   That is why a sowing carries running tallies rather than a status:
+
+     count      how many seeds went in
+     sprouted   how many have come up since
+     dead       how many rotted, or never came
+     days       what the packet promises, so the app knows when to ask
+
+   Still trying is what is left: count - sprouted - dead. A sowing is finished
+   when that reaches zero, and the percentages are per seed rather than per
+   batch, which is the only way "four of twelve came up" can be recorded
+   honestly.
+
+   Sowings are a third list beside plants and species, of exactly the same
+   shape — id, updatedAt, a deletedAt tombstone — and are merged by the same
+   code on both ends. Potting one up creates ordinary plants, linked back by
+   `sowingId`; nothing else about a plant knows or cares where it came from.
+   ========================================================================= */
+
+const liveSowings = () => sowings.filter((s) => !s.deletedAt);
+
+/** A count as it is worth trusting: a whole number, never below zero. */
+function whole(value) {
+  const n = Math.floor(Number(value));
+  return isFinite(n) && n > 0 ? n : 0;
+}
+
+/**
+ * The four numbers a sowing comes down to.
+ *
+ * The tallies are clamped against the batch rather than taken at face value:
+ * two phones that both potted up the last seedling would otherwise merge into
+ * a sowing claiming more seedlings than seeds.
+ */
+function tally(sowing) {
+  const sown = whole(sowing.count);
+  const up = Math.min(whole(sowing.sprouted), sown);
+  const dead = Math.min(whole(sowing.dead), sown - up);
+  return { sown: sown, up: up, dead: dead, trying: sown - up - dead };
+}
+
+/** The running total across several sowings, in the same shape. */
+const sumTallies = (list) =>
+  list.reduce((acc, sowing) => {
+    const t = tally(sowing);
+    acc.sown += t.sown; acc.up += t.up; acc.dead += t.dead; acc.trying += t.trying;
+    return acc;
+  }, { sown: 0, up: 0, dead: 0, trying: 0 });
+
+/**
+ * The species this sowing is of, or null.
+ *
+ * The id is resolved first, as on a plant, but a sowing that only ever had a
+ * name typed into it is looked up by that name as well: seeds are usually in
+ * before the species record is, and a sowing that quietly joins its species
+ * once one exists is friendlier than one that has to be edited to notice.
+ */
+const sowingSpecies = (sowing) =>
+  (sowing.speciesId && speciesById.get(sowing.speciesId)) ||
+  (sowing.species ? speciesByName(sowing.species) : null);
+
+const sowingName = (sowing) => {
+  const parent = sowingSpecies(sowing);
+  return (parent && parent.name) || sowing.species || 'Unnamed sowing';
+};
+
+/** The day the packet says they should be through, or '' when unstated. */
+function expectedKey(sowing) {
+  const days = whole(sowing.days);
+  return days && sowing.sownOn ? addDays(sowing.sownOn, days) : '';
+}
+
+/** Whole days past the expected day; 0 on the day itself and before it. */
+function sowingLate(sowing, today) {
+  const expected = expectedKey(sowing);
+  return expected ? Math.max(0, daysBetween(expected, today)) : 0;
+}
+
+/** Seeds still under the soil, and the day they were promised has come. */
+function sowingDue(sowing, today) {
+  if (tally(sowing).trying < 1) return false;
+  const expected = expectedKey(sowing);
+  return !!expected && daysBetween(expected, today) >= 0;
+}
+
+const seedsDue = (today) =>
+  liveSowings()
+    .filter((s) => sowingDue(s, today))
+    .sort((a, b) => sowingLate(b, today) - sowingLate(a, today) ||
+                    sowingName(a).localeCompare(sowingName(b), undefined,
+                                               { sensitivity: 'base' }));
+
+/** Soonest expected first; a sowing with no expected day waits at the back. */
+const sowOrder = (a, b) => {
+  const ea = expectedKey(a) || '9999-12-31';
+  const eb = expectedKey(b) || '9999-12-31';
+  if (ea !== eb) return ea < eb ? -1 : 1;
+  return sowingName(a).localeCompare(sowingName(b), undefined, { sensitivity: 'base' });
+};
+
+/** Finished sowings read as a log, so the most recent one is at the top. */
+const sowRecent = (a, b) => String(b.sownOn || '').localeCompare(String(a.sownOn || ''));
+
+/** "Expected today", "3 days late", or what is left when no day was given. */
+function expectedText(sowing, today) {
+  const expected = expectedKey(sowing);
+  const trying = tally(sowing).trying;
+  if (!expected) return trying + (trying === 1 ? ' seed still to come' : ' seeds still to come');
+
+  const away = daysBetween(today, expected);
+  if (away === 0) return 'Expected today';
+  if (away === 1) return 'Expected tomorrow';
+  if (away > 1) return 'Expected ' + fmtDayKey(expected);
+  return -away === 1 ? '1 day late' : -away + ' days late';
+}
+
+/** One line of plain English about where a sowing stands. */
+function sowingStatus(sowing, today) {
+  const t = tally(sowing);
+  if (!t.sown) return 'Nothing recorded';
+  if (t.trying < 1) return t.up + ' up, ' + t.dead + ' lost';
+  const sofar = t.up || t.dead ? t.up + ' up so far' : '';
+  return [sofar, expectedText(sowing, today)].filter(Boolean).join(' · ');
+}
+
+/* ---------- the bar, and the three percentages under it ---------- */
+
+/**
+ * Percentages that always add to a hundred.
+ *
+ * Two of the three are rounded and the third takes what is left, because
+ * three independently rounded numbers under a bar drawn from the exact ones
+ * is how you end up printing 101%. "Still trying" is the residual while there
+ * is one, since it is the number that is still moving.
+ */
+function percentages(t) {
+  if (t.sown < 1) return { up: 0, dead: 0, trying: 0 };
+  const up = Math.round(t.up / t.sown * 100);
+  let dead = t.trying < 1 ? 100 - up : Math.round(t.dead / t.sown * 100);
+  let trying = 100 - up - dead;
+  if (trying < 0) { dead += trying; trying = 0; }
+  return { up: up, dead: dead, trying: trying };
+}
+
+/** The stacked bar: three parts of one batch, drawn from the exact counts. */
+function renderBar(node, t) {
+  node.textContent = '';
+  node.hidden = t.sown < 1;
+  if (node.hidden) return;
+
+  for (const part of [['up', t.up], ['dead', t.dead], ['trying', t.trying]]) {
+    const span = document.createElement('span');
+    span.className = part[0];
+    span.style.width = (part[1] / t.sown * 100) + '%';
+    span.hidden = part[1] < 1;
+    node.appendChild(span);
+  }
+}
+
+/** "33% came up · 25% died · 42% still trying", the figures picked out. */
+function fillSplit(node, t) {
+  node.textContent = '';
+  const pct = percentages(t);
+  const parts = [[pct.up, 'came up'], [pct.dead, 'died'], [pct.trying, 'still trying']];
+
+  parts.forEach((part, i) => {
+    if (i) node.appendChild(document.createTextNode(' · '));
+    const figure = document.createElement('b');
+    figure.textContent = part[0] + '%';
+    node.appendChild(figure);
+    node.appendChild(document.createTextNode(' ' + part[1]));
+  });
+}
+
+/**
+ * Every species something has been sown of, with its seeds pooled.
+ *
+ * Grouped by species record where there is one and by the name that was typed
+ * where there is not, so sowings of the same thing land together whether or
+ * not a record existed at the time. Biggest batch first: the species you have
+ * sown most of is the one whose success rate you actually have a figure for.
+ */
+function seedStats() {
+  const groups = new Map();
+
+  for (const sowing of liveSowings()) {
+    const parent = sowingSpecies(sowing);
+    const name = sowingName(sowing);
+    const key = parent ? parent.id : 'name:' + name.toLowerCase();
+    if (!groups.has(key)) {
+      groups.set(key, { name: name, id: parent ? parent.id : '', list: [] });
+    }
+    groups.get(key).list.push(sowing);
+  }
+
+  return Array.from(groups.values())
+    .map((group) => Object.assign(group, { total: sumTallies(group.list) }))
+    .filter((group) => group.total.sown > 0)
+    .sort((a, b) => b.total.sown - a.total.sown ||
+                    a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+}
+
+/** Everything sown of one species, for the block on its own page. */
+const seedsOfSpecies = (record) =>
+  liveSowings().filter((s) => {
+    const parent = sowingSpecies(s);
+    return parent && parent.id === record.id;
+  });
+
+/** One block of the stats: who, the bar, the three figures. */
+function tallyBlock(group, isTotal) {
+  const box = document.createElement('div');
+  box.className = 'tally' + (isTotal ? ' total' : '');
+
+  const who = document.createElement('div');
+  who.className = 'who';
+
+  const name = document.createElement('span');
+  name.textContent = group.name;
+  who.appendChild(name);
+
+  const n = document.createElement('span');
+  n.className = 'n';
+  const batches = group.list.length;
+  n.textContent = group.total.sown + ' seeds · ' +
+                  (batches === 1 ? '1 sowing' : batches + ' sowings');
+  who.appendChild(n);
+  box.appendChild(who);
+
+  const bar = document.createElement('div');
+  bar.className = 'bar';
+  renderBar(bar, group.total);
+  box.appendChild(bar);
+
+  const split = document.createElement('p');
+  split.className = 'split';
+  fillSplit(split, group.total);
+  box.appendChild(split);
+
+  return box;
+}
+
+/* ---------- lists ---------- */
+
+function sowingRow(sowing, today) {
+  const li = document.createElement('li');
+
+  const a = document.createElement('a');
+  a.href = '#/seed/' + encodeURIComponent(sowing.id);
+
+  const text = document.createElement('div');
+  text.className = 'text';
+
+  const name = document.createElement('div');
+  name.className = 'name';
+  name.textContent = sowingName(sowing);
+  text.appendChild(name);
+
+  const t = tally(sowing);
+  const sub = document.createElement('div');
+  sub.className = 'sub' + (sowingLate(sowing, today) > 0 ? ' late' : '');
+  sub.textContent = [t.sown + (t.sown === 1 ? ' seed' : ' seeds'),
+                     sowingStatus(sowing, today)].filter(Boolean).join(' · ');
+  text.appendChild(sub);
+
+  a.appendChild(text);
+  li.appendChild(a);
+  return li;
+}
+
+function renderSeeds() {
+  const today = todayKey();
+  const all = liveSowings();
+  const open = all.filter((s) => tally(s).trying > 0).sort(sowOrder);
+  const done = all.filter((s) => tally(s).trying < 1).sort(sowRecent);
+
+  const fillList = (selector, heading, items) => {
+    const ul = $(selector);
+    ul.textContent = '';
+    for (const sowing of items) ul.appendChild(sowingRow(sowing, today));
+    $(heading).hidden = items.length === 0;
+  };
+
+  fillList('#seeds-open', '#seeds-open-heading', open);
+  fillList('#seeds-done', '#seeds-done-heading', done);
+  $('#no-seeds').hidden = all.length > 0;
+
+  // The stats are the point of keeping any of this, but they need something to
+  // be a fraction of: with one sowing they would only ever read 0% or 100%.
+  const stats = seedStats();
+  const box = $('#seeds-stats');
+  box.textContent = '';
+  $('#seeds-stats-heading').hidden = stats.length === 0;
+
+  if (stats.length) {
+    if (stats.length > 1) {
+      box.appendChild(tallyBlock({
+        name: 'All seeds',
+        list: all,
+        total: sumTallies(all)
+      }, true));
+    }
+    for (const group of stats) box.appendChild(tallyBlock(group, false));
+  }
+
+  show('seeds', open.length ? `Seeds (${open.length})` : 'Seeds', false);
+}
+
+/* ---------- one sowing ---------- */
+
+function renderSeedDetail(id) {
+  const sowing = sowings.find((x) => x.id === id && !x.deletedAt);
+  if (!sowing) {
+    location.replace('#/seeds');    // no history entry for a sowing that is gone
+    return;
+  }
+
+  const today = todayKey();
+  const t = tally(sowing);
+  const parent = sowingSpecies(sowing);
+
+  $('#q-name').textContent = sowingName(sowing);
+
+  const link = $('#q-species-from');
+  fill($('#q-species'), parent ? parent.name : sowing.species, 'Not set');
+  link.hidden = !parent;
+  if (parent) {
+    link.textContent = 'open';
+    link.href = '#/s/' + encodeURIComponent(parent.id);
+  }
+
+  fill($('#q-sown'), sowing.sownOn
+    ? t.sown + (t.sown === 1 ? ' seed on ' : ' seeds on ') + fmtDayKey(sowing.sownOn)
+    : '', 'Not set');
+
+  const expected = expectedKey(sowing);
+  const late = sowingLate(sowing, today);
+  const expectedVal = $('#q-expected');
+  fill(expectedVal, expected
+    ? fmtDayKey(expected) + (t.trying > 0 && late > 0
+        ? ' · ' + (late === 1 ? '1 day late' : late + ' days late') : '')
+    : '', 'No germination time given');
+  expectedVal.classList.toggle('late', t.trying > 0 && late > 0);
+
+  fill($('#q-sprouted'), String(t.up), '0');
+  fill($('#q-dead'), String(t.dead), '0');
+  fill($('#q-trying'), t.trying > 0 ? String(t.trying) : 'None — this sowing is finished', '0');
+
+  renderBar($('#q-bar'), t);
+  fillSplit($('#q-bar-text'), t);
+  $('#q-bar-wrap').hidden = t.sown < 1;
+
+  // Nothing left under the soil, nothing left to record.
+  const record = $('#q-record');
+  record.hidden = t.trying < 1;
+  $('#q-record-error').hidden = true;
+  if (!record.hidden) {
+    for (const box of [$('#q-up-n'), $('#q-dead-n')]) {
+      box.max = t.trying;
+      box.value = 1;
+    }
+    $('#q-up-plant').onclick = () => recordSprouted(sowing.id, $('#q-up-n').value, true);
+    $('#q-up-only').onclick = () => recordSprouted(sowing.id, $('#q-up-n').value, false);
+    $('#q-dead-add').onclick = () => recordDead(sowing.id, $('#q-dead-n').value);
+    $('#q-dead-rest').onclick = () => {
+      const rest = tally(sowing).trying;
+      if (!confirm(`Write off the ${rest} seed${rest === 1 ? '' : 's'} still in this tray?`)) return;
+      recordDead(sowing.id, rest);
+    };
+  }
+
+  fill($('#q-notes'), sowing.notes, 'No notes');
+
+  const mine = live().filter((p) => p.sowingId === sowing.id).sort(byName);
+  const ul = $('#q-plants');
+  ul.textContent = '';
+  for (const plant of mine) ul.appendChild(plantRow(plant, today, false));
+  $('#q-plants-heading').hidden = !mine.length;
+
+  $('#q-meta').textContent = sowing.createdAt ? 'Recorded ' + fmtDate(sowing.createdAt) : '';
+
+  $('#q-edit').href = '#/seed/' + encodeURIComponent(sowing.id) + '/edit';
+  $('#q-delete').onclick = () => {
+    if (!confirm(`Delete this sowing of ${sowingName(sowing)}?` +
+                 (mine.length ? ' The plants it produced are kept.' : ''))) return;
+    sowing.deletedAt = new Date().toISOString();
+    sowing.updatedAt = sowing.deletedAt;
+    commit();
+    replaceRoute('#/seeds');       // Back must not return to what was deleted
+  };
+
+  show('seed-detail', sowingName(sowing), true);
+}
+
+/* ---------- recording an outcome ---------- */
+
+/** Complains in the fieldset rather than in the status bar, next to the box. */
+function recordProblem(message) {
+  const line = $('#q-record-error');
+  line.textContent = message;
+  line.hidden = !message;
+  return !message;
+}
+
+/**
+ * Reads one of the two number boxes, clamped to what is actually left.
+ * Returns 0 and complains when it does not read as a number of seeds.
+ */
+function readOutcome(sowing, raw) {
+  const trying = tally(sowing).trying;
+  const n = Math.floor(Number(String(raw).trim()));
+  if (!isFinite(n) || n < 1) {
+    recordProblem('That does not read as a number of seeds.');
+    return 0;
+  }
+  if (n > trying) {
+    recordProblem(`There ${trying === 1 ? 'is' : 'are'} only ${trying} left in this sowing.`);
+    return 0;
+  }
+  recordProblem('');
+  return n;
+}
+
+/**
+ * Pot up n seedlings: one plant each, already following the species.
+ *
+ * They are numbered when the sowing has produced more than one, because a
+ * tray of six identical "Basil" rows is unreadable, and a single seedling
+ * called "Basil 1" reads as though five more are coming.
+ */
+function potUp(sowing, n) {
+  const parent = sowingSpecies(sowing);
+  const speciesName = (parent && parent.name) || sowing.species || '';
+  const base = speciesName || 'Seedling';
+  const existing = live().filter((p) => p.sowingId === sowing.id).length;
+  const now = new Date().toISOString();
+
+  for (let i = 0; i < n; i++) {
+    plants.push({
+      id: uid(),
+      name: existing + n > 1 ? base + ' ' + (existing + i + 1) : base,
+      species: speciesName,
+      speciesId: parent ? parent.id : '',
+      sowingId: sowing.id,
+      place: '',
+      temps: null, humidity: null, ph: null, light: null,
+      schedule: null,
+      water: '', notes: '',
+      createdAt: now, updatedAt: now
+    });
+  }
+}
+
+function recordSprouted(id, raw, alsoPotUp) {
+  const sowing = sowings.find((x) => x.id === id && !x.deletedAt);
+  if (!sowing) return;
+
+  const n = readOutcome(sowing, raw);
+  if (!n) return;
+
+  if (alsoPotUp) potUp(sowing, n);
+  sowing.sprouted = tally(sowing).up + n;
+  sowing.updatedAt = new Date().toISOString();
+  commit();
+
+  setStatus(alsoPotUp
+    ? (n === 1 ? 'Potted up 1 seedling.' : 'Potted up ' + n + ' seedlings.')
+    : (n === 1 ? '1 seedling counted.' : n + ' seedlings counted.'), false);
+}
+
+function recordDead(id, raw) {
+  const sowing = sowings.find((x) => x.id === id && !x.deletedAt);
+  if (!sowing) return;
+
+  const n = readOutcome(sowing, raw);
+  if (!n) return;
+
+  sowing.dead = tally(sowing).dead + n;
+  sowing.updatedAt = new Date().toISOString();
+  commit();
+}
+
+/* ---------- sowing something, and editing what was sown ---------- */
+
+let sowingIsNew = false;
+
+/**
+ * Says what naming a species buys, and offers the germination time the last
+ * sowing of it needed. Days to come up is a fact about the kind of seed, so
+ * on a new sowing the box is filled in rather than merely hinted at — it is
+ * what puts the sowing on the Seeds due list, and an empty box quietly opts
+ * out of the whole feature.
+ */
+function applySeedSpecies() {
+  const typed = $('#q-f-species').value.trim();
+  const parent = speciesByName(typed);
+  const hint = $('#q-f-species-hint');
+
+  if (!typed) {
+    hint.textContent = 'Optional. Naming one pools this sowing with the rest of ' +
+                       'its kind in the figures below the list.';
+  } else if (parent) {
+    hint.textContent = 'Linked to ' + parent.name +
+                       '. Seedlings potted up from here follow it.';
+  } else {
+    hint.textContent = 'No species called that yet — the sowing keeps the name ' +
+                       'either way, and joins the record if you add one later.';
+  }
+
+  const days = lastGerminationDays(typed);
+  const box = $('#q-f-days');
+  box.placeholder = days ? String(days) : '7';
+  if (sowingIsNew && days && !box.value) box.value = days;
+
+  return parent;
+}
+
+/** How long the last sowing of this name took to be given up on, or 0. */
+function lastGerminationDays(name) {
+  const wanted = String(name || '').trim().toLowerCase();
+  if (!wanted) return 0;
+
+  const seen = liveSowings()
+    .filter((s) => whole(s.days) && sowingName(s).toLowerCase() === wanted)
+    .sort(sowRecent);
+  return seen.length ? whole(seen[0].days) : 0;
+}
+
+function renderSeedForm(id) {
+  const sowing = id ? sowings.find((x) => x.id === id && !x.deletedAt) : null;
+  if (id && !sowing) {
+    location.replace('#/seeds');
+    return;
+  }
+
+  const form = $('#seed-form');
+  form.reset();
+  sowingIsNew = !sowing;
+
+  $('#q-f-species').value = sowing ? sowing.species || '' : '';
+  $('#q-f-count').value = sowing ? whole(sowing.count) || '' : '';
+  $('#q-f-date').value = sowing ? sowing.sownOn || '' : todayKey();
+  $('#q-f-days').value = sowing ? whole(sowing.days) || '' : '';
+  $('#q-f-notes').value = sowing ? sowing.notes || '' : '';
+  $('#q-f-error').hidden = true;
+  applySeedSpecies();
+
+  const complain = (message, focus) => {
+    const line = $('#q-f-error');
+    line.textContent = message;
+    line.hidden = false;
+    $(focus).focus();
+  };
+
+  form.onsubmit = (e) => {
+    e.preventDefault();
+    $('#q-f-error').hidden = true;
+
+    const count = Math.floor(Number(String($('#q-f-count').value).trim()));
+    if (!isFinite(count) || count < 1) {
+      return complain('How many seeds went in?', '#q-f-count');
+    }
+
+    const sownOn = $('#q-f-date').value;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(sownOn)) {
+      return complain('Which day did they go in?', '#q-f-date');
+    }
+
+    const rawDays = String($('#q-f-days').value).trim();
+    const days = rawDays === '' ? null : Math.floor(Number(rawDays));
+    if (days !== null && (!isFinite(days) || days < 1)) {
+      return complain('That does not read as a number of days.', '#q-f-days');
+    }
+
+    // Editing the batch down below what has already been recorded would make
+    // the percentages lie, so it is refused rather than silently clamped.
+    if (sowing) {
+      const settled = tally(sowing).up + tally(sowing).dead;
+      if (count < settled) {
+        return complain(`${settled} of these are already accounted for, so the ` +
+                        `batch cannot be smaller than that.`, '#q-f-count');
+      }
+    }
+
+    const now = new Date().toISOString();
+    const speciesName = $('#q-f-species').value.trim();
+    const parent = speciesByName(speciesName);
+    const fields = {
+      species: speciesName,
+      speciesId: parent ? parent.id : '',
+      count: count,
+      sownOn: sownOn,
+      days: days,
+      notes: $('#q-f-notes').value.trim(),
+      updatedAt: now
+    };
+
+    let saved = sowing;
+    if (sowing) {
+      Object.assign(sowing, fields);
+    } else {
+      saved = Object.assign({ id: uid(), sprouted: 0, dead: 0, createdAt: now }, fields);
+      sowings.push(saved);
+    }
+
+    commit();
+    // As on the plant form: a submitted form must not stay in history.
+    if (sowing && cameFrom === '/seed/' + sowing.id) {
+      history.back();
+    } else {
+      replaceRoute('#/seed/' + encodeURIComponent(saved.id));
+    }
+  };
+
+  $('#q-f-cancel').onclick = () => history.back();
+
+  show('seed-edit', sowing ? 'Edit sowing' : 'Sow seeds', true);
+  if (!sowing) setTimeout(() => $('#q-f-species').focus(), 50);
+}
+
 /* ---------- settings ---------- */
 
 function renderSettings() {
@@ -2055,9 +2719,10 @@ function renderSettings() {
 
   $('#s-server').textContent = server;
   const kinds = liveSpecies().length;
+  const sown = liveSowings().length;
   $('#s-count').textContent =
-    `${count} plant${count === 1 ? '' : 's'} and ${kinds} ` +
-    `species cached on this device` +
+    `${count} plant${count === 1 ? '' : 's'}, ${kinds} ` +
+    `species and ${sown} sowing${sown === 1 ? '' : 's'} cached on this device` +
     (dirty ? ', with changes waiting to sync.' : '.');
 
   show('settings', 'Settings', true);
@@ -2092,6 +2757,7 @@ for (const radio of schedRadios(SPECIES_SCHED)) {
 }
 
 $('#f-species').oninput = applySpeciesToForm;
+$('#q-f-species').oninput = applySeedSpecies;
 
 // Anything typed arrives a character at a time, and a lone "-" is not a
 // temperature, so it waits for a pause. Anything picked searches at once.
@@ -2119,7 +2785,7 @@ $('#cat-clear').onclick = () => {
 $('#s-sync').onclick = () => sync();
 
 $('#s-export').onclick = () => {
-  const blob = new Blob([JSON.stringify({ version: 2, species, plants }, null, 2)],
+  const blob = new Blob([JSON.stringify({ version: 3, species, plants, sowings }, null, 2)],
                         { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -2138,8 +2804,10 @@ $('#s-file').onchange = async (e) => {
     const incoming = Array.isArray(parsed) ? parsed : parsed.plants;
     if (!Array.isArray(incoming)) throw new Error('no plant list in that file');
     plants = merge(plants, incoming);
-    // A backup taken before species existed simply has none to bring back.
+    // A backup taken before species or sowings existed simply has none to
+    // bring back, which merges to what is already here.
     if (parsed && Array.isArray(parsed.species)) species = merge(species, parsed.species);
+    if (parsed && Array.isArray(parsed.sowings)) sowings = merge(sowings, parsed.sowings);
     commit();
     renderSettings();
     setStatus(`Imported. ${live().length} plants now.`, false);
@@ -2180,6 +2848,7 @@ $('#s-docs').onclick = async () => {
 $('#s-forget').onclick = () => {
   if (!confirm('Erase the copy cached in this browser? The server keeps its copy, and the next sync pulls it back.')) return;
   plants = [];
+  sowings = [];
   dirty = false;
   write(K_DIRTY, false);
   persist();

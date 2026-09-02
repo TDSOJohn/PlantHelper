@@ -338,6 +338,7 @@ a.from { color: var(--accent); font-style: normal; text-decoration: underline; }
 input[type="text"],
 input[type="number"],
 input[type="search"],
+input[type="date"],
 select,
 textarea {
   display: block;
@@ -483,6 +484,9 @@ input.invalid { border-color: var(--danger); }
   font-size: 15px;
 }
 .inline input { flex: none; width: 4.5em; text-align: center; }
+/* A date is not a two-digit figure: 4.5em clips it to "02/09/" on iOS, and
+   the native picker needs room for whatever order the locale puts it in. */
+.inline input[type="date"] { width: auto; min-width: 9.5em; text-align: left; }
 /* Wide enough for "Indirect light" without stretching across the row. */
 .inline select { flex: none; width: auto; min-width: 9em; }
 
@@ -536,6 +540,44 @@ input.invalid { border-color: var(--danger); }
   letter-spacing: 0.02em;
   white-space: nowrap;
 }
+
+/* ---------- how a sowing did ----------
+
+   Three percentages of one batch of seeds, which is a whole and reads as one:
+   a single bar in three parts says "most of them came up" before the numbers
+   under it are read at all. The parts carry no text — at 8% of a phone's width
+   a label would not fit — so the line beneath always spells them out.
+
+   A zero-width part must leave no trace: `flex-grow` alone would still paint
+   the 1px of a rounded edge, hence the explicit `display: none` on empty. */
+.bar {
+  display: flex;
+  height: 10px;
+  margin: 8px 0;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--line);
+}
+.bar span { display: block; height: 100%; }
+.bar span[hidden] { display: none !important; }
+.bar .up { background: var(--accent); }
+.bar .dead { background: var(--danger); }
+.bar .trying { background: var(--ink-dim); opacity: 0.45; }
+
+/* One species' seeds on the Seeds tab: a heading line, the bar, the numbers. */
+.tally + .tally { margin-top: 18px; }
+.tally .who {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-weight: 600;
+}
+.tally .who .n { flex: none; color: var(--ink-dim); font-weight: 400; font-size: 14px; }
+.tally .split { margin: 0; color: var(--ink-dim); font-size: 14px; }
+.tally .split b { color: var(--ink); font-weight: 600; }
+
+/* The all-species total sits above the rest and is worth the extra weight. */
+.tally.total { padding-bottom: 18px; border-bottom: 1px solid var(--line); }
 
 /* ---------- buttons ---------- */
 .row {
