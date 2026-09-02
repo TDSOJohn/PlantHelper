@@ -38,23 +38,31 @@ install -m 755 -t "$APP_DIR" "$SRC/server.py"
 echo "preparing $DATA_DIR"
 install -d -m 750 -o "$SERVICE_USER" -g "$SERVICE_USER" "$DATA_DIR"
 
-# The reference catalogue, when the repo carries one. Safe to replace wholesale
-# because it is derived: plants_db rebuilds it from the Wikipedia dump, and
-# nothing in the app ever writes to it. plants.json is the opposite on every
-# count and is never copied from the repo — the plant list on the Pi is the
-# only copy that matters, and overwriting it with a developer's would be
-# unrecoverable.
+# The reference catalogue. Two builds may be sitting in data/, and the fuller
+# one wins: plants.full.sqlite is Wikipedia plus pfaf.org and does not travel
+# in the repo, because pfaf.org grants no reuse licence — you copy it across by
+# hand. plants.sqlite is the Wikipedia-only build, which does travel, so a
+# clone that has never had a copy made to it still installs a working
+# catalogue. Either is installed under the one name the server looks for.
+#
+# Safe to replace wholesale because it is derived: plants_db rebuilds it from
+# the sources, and nothing in the app ever writes to it. plants.json is the
+# opposite on every count and is never copied from the repo — the plant list on
+# the Pi is the only copy that matters, and overwriting it with a developer's
+# would be unrecoverable.
 #
 # Staged and renamed rather than written over. The server opens the file on
 # every search, and one landing in the window where a plain copy has truncated
 # it gets "Cannot read the catalogue" — about one request in 400 when measured,
 # which is rare enough to be baffling rather than obviously self-inflicted.
-if [ -f "$SRC/data/plants.sqlite" ]; then
-  echo "installing the catalogue into $DATA_DIR"
+for name in plants.full.sqlite plants.sqlite; do
+  [ -f "$SRC/data/$name" ] || continue
+  echo "installing the catalogue ($name) into $DATA_DIR"
   install -m 640 -o "$SERVICE_USER" -g "$SERVICE_USER" \
-    "$SRC/data/plants.sqlite" "$DATA_DIR/plants.sqlite.new"
+    "$SRC/data/$name" "$DATA_DIR/plants.sqlite.new"
   mv "$DATA_DIR/plants.sqlite.new" "$DATA_DIR/plants.sqlite"
-fi
+  break
+done
 
 echo "installing the service"
 sed -e "s|@APP_DIR@|$APP_DIR|g" \

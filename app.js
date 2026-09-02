@@ -1780,8 +1780,10 @@ async function renderSpeciesFromCatalog(pageId) {
 /* =========================================================================
    The reference catalogue
 
-   5,065 species mined from Wikipedia, sitting in data/plants.sqlite on the Pi.
-   It is searched there rather than held here: 4 MB of encyclopedia has no
+   5,065 species sitting in a SQLite file on the Pi: mined from the English
+   Wikipedia dump, and 1,132 of them filled out from pfaf.org, which states
+   soil, shade and hardiness outright where an encyclopedia had to be read for
+   them. It is searched there rather than held here: an encyclopedia has no
    business in localStorage, and unlike your own plants this is reference data
    you never edit, so there is nothing to sync and nothing to lose by needing
    the Pi to read it.
@@ -1819,6 +1821,38 @@ function fillMarks(node, entry) {
     node.appendChild(pill);
   }
   return marks;
+}
+
+/* Which sources an entry was built from. Every row starts as a Wikipedia
+   article, so plain `enwiki` says nothing worth a line — it is the absence of
+   the other one, and the page already says Wikipedia twice. Empty on the
+   Wikipedia-only build of the catalogue, which records no provenance at all. */
+const CATALOG_SOURCE = { 'enwiki+pfaf': 'filled out from pfaf.org',
+                         pfaf: 'from pfaf.org, no Wikipedia article' };
+
+/* pfaf.org's three 0-5 ratings, in the order it prints them. Unlike the marks
+   these have a real zero — somebody looked and found no use of that kind —
+   so a 0 is shown rather than dropped, and the whole line is absent only
+   where the plant was never rated. */
+const CATALOG_RATINGS = { edible: 'edible', medicinal: 'medicinal',
+                          other: 'other uses' };
+
+/**
+ * Draws the ratings line into `node`. Returns whether there was one.
+ *
+ * Written out as "4/5" rather than as stars: the marks above are already
+ * pills, a second row of ornaments would compete with them, and the figure is
+ * the thing worth reading — pfaf's own pages print the number too.
+ */
+function fillRatings(node, entry) {
+  const ratings = entry.ratings || {};
+  const said = Object.keys(CATALOG_RATINGS)
+    .filter((name) => typeof ratings[name] === 'number')
+    .map((name) => ratings[name] + '/5 ' + CATALOG_RATINGS[name]);
+
+  node.textContent = said.length ? 'pfaf.org rates it ' + said.join(' · ') : '';
+  node.hidden = !said.length;
+  return said.length > 0;
 }
 
 function catalogLightText(entry) {
@@ -2031,7 +2065,7 @@ async function renderCatalogEntry(pageId) {
 
   const fields = ['#c-title', '#c-binomial', '#c-temp', '#c-humidity', '#c-ph',
                   '#c-light', '#c-height', '#c-family', '#c-zone', '#c-flags',
-                  '#c-uses', '#c-notes', '#c-lead', '#c-meta'];
+                  '#c-ratings', '#c-uses', '#c-notes', '#c-lead', '#c-meta'];
   for (const sel of fields) $(sel).textContent = '';
 
   $('#c-add').textContent = 'Add as a species';
@@ -2055,7 +2089,7 @@ async function renderCatalogEntry(pageId) {
 
   fill($('#c-temp'), tempText(entry), 'Not recorded');
   // A minimum read off a hardiness zone is a coarser figure than one an editor
-  // wrote in a sentence, and 453 of the entries have one.
+  // wrote in a sentence, and 1,323 of the entries have one.
   const zoned = $('#c-temp-from');
   zoned.hidden = !entry.fromZone;
   zoned.textContent = entry.fromZone ? 'from a zone' : '';
@@ -2063,26 +2097,44 @@ async function renderCatalogEntry(pageId) {
   fill($('#c-humidity'), humidityText(entry), 'Not recorded');
   const ph = phText(entry);
   fill($('#c-ph'), ph && 'pH ' + ph, 'Not recorded');
+  // The same warning, for the same reason. pfaf.org states soil as named
+  // bands rather than numbers, so 1,043 of the 1,278 entries that carry a pH
+  // carry the edges of a band somebody named — 6.0-8.5 is "mildly acid to
+  // mildly alkaline" and not a figure anyone measured.
+  const banded = $('#c-ph-from');
+  banded.hidden = !entry.phFromBands;
+  banded.textContent = entry.phFromBands ? 'from soil bands' : '';
   fill($('#c-light'), catalogLightText(entry), 'Not recorded');
   fill($('#c-height'), heightText(entry), 'Not recorded');
   fill($('#c-family'), entry.family, 'Not recorded');
   fill($('#c-zone'), entry.zone && 'Zone ' + entry.zone, 'Not recorded');
 
-  // The paragraph is not always a recipe: 30 entries carry one with neither
+  // The paragraph is not always a recipe: 23 entries carry one with neither
   // flag set, because what the article had to say was a warning. Those are
   // worth reading more than the rest, so an unmarked entry still shows it.
   const marks = fillMarks($('#c-flags'), entry);
   $('#c-flags').hidden = !marks.length;
+  const rated = fillRatings($('#c-ratings'), entry);
   const uses = $('#c-uses');
-  uses.hidden = !entry.uses && marks.length > 0;
+  uses.hidden = !entry.uses && (marks.length > 0 || rated);
   fill(uses, entry.uses, 'Nothing recorded');
 
   fill($('#c-notes'), entry.notes, 'Nothing quotable in the article');
   fill($('#c-lead'), entry.lead, 'No lead stored');
-  $('#c-meta').textContent = 'Wikipedia page ' + entry.pageId +
-    ' · known here as ' + (entry.aliases || []).join(', ');
+  // A page id is Wikipedia's, so a plant Wikipedia has no article for cannot
+  // have one — `plants_db --promote` gives those a negative id precisely
+  // because a key that is obviously not a page id cannot collide with a real
+  // one. Naming it or linking to it would both be lies, so neither happens.
+  const article = entry.pageId > 0;
+  $('#c-meta').textContent = [article ? 'Wikipedia page ' + entry.pageId : '',
+                              CATALOG_SOURCE[entry.source],
+                              'known here as ' + (entry.aliases || []).join(', ')]
+                             .filter(Boolean).join(' · ');
 
-  $('#c-wiki').href = 'https://en.wikipedia.org/?curid=' + encodeURIComponent(entry.pageId);
+  const wiki = $('#c-wiki');
+  wiki.hidden = !article;
+  wiki.href = article
+    ? 'https://en.wikipedia.org/?curid=' + encodeURIComponent(entry.pageId) : '#';
 
   // The way out of the catalogue and into your own records. It says which
   // species it would fill, because filling one you already keep is the common

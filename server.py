@@ -56,6 +56,13 @@ BACKUP_KEEP = 30                  # daily snapshots to retain
 HIDDEN = ("/data", "/backups")    # never served as static files
 CATALOG_LIMIT = 60                # rows one search may return
 
+# Two builds of the catalogue, looked for in this order. The full one is mined
+# from Wikipedia *and* pfaf.org and cannot be redistributed, so it is not in the
+# repo; the Wikipedia-only one is, and is what a fresh clone falls back to. See
+# "Two catalogues" in the README. They carry the same columns, so everything
+# below reads whichever it is given without knowing which it got.
+CATALOG_NAMES = ("plants.full.sqlite", "plants.sqlite")
+
 _lock = threading.Lock()
 
 
@@ -214,13 +221,19 @@ def like_escape(text):
 
 
 class Catalog:
-    """The reference catalogue: 5,065 species mined from Wikipedia by ../plants_db.
+    """The reference catalogue: 5,065 species built by ../plants_db.
+
+    Two sources behind those rows. Every one of them comes from the English
+    Wikipedia dump; 1,132 have then been filled out from pfaf.org, which states
+    soil, shade and hardiness outright where an encyclopedia had to be mined
+    for them. `source` says which, per row.
 
     Read-only, and deliberately not part of plants.json. It is the opposite
-    kind of data: nobody edits it, it is rebuilt from scratch whenever the dump
-    is re-mined, and losing it costs an afternoon rather than a plant. Keeping
-    it out of the document also keeps the document syncable — a phone holds the
-    whole of plants.json offline, and would not want 4 MB of encyclopedia.
+    kind of data: nobody edits it, it is rebuilt from scratch whenever the
+    sources are re-mined, and losing it costs a rebuild rather than a plant.
+    Keeping it out of the document also keeps the document syncable — a phone
+    holds the whole of plants.json offline, and would not want an encyclopedia
+    on top.
 
     Nothing here writes. The file is opened read-only and never through the
     static file server either: /data is in HIDDEN.
@@ -228,31 +241,37 @@ class Catalog:
     Queries are `SELECT *` and pick columns out by name, so a column added or
     renamed upstream costs nothing here unless it is one of the names below —
     and then it is a KeyError on the first request rather than a startup
-    failure. The suite pins the read set for that reason. `section_name` is
-    not among them: it says which heading a figure was read from, which is
-    provenance for the extractor rather than anything to show.
+    failure. `section_name` is not among them: it says which heading a figure
+    was read from, which is provenance for the extractor rather than anything
+    to show.
+
+    Both builds carry the same columns, including the five pfaf.org added.
+    The Wikipedia-only one leaves them empty rather than omitting them, so
+    there is one shape to read here and no build to special-case.
     """
 
     # What a filter may ask about. Two shapes for the numbers, because the
     # data has two.
     #
     # BANDS: the recorded range has to cover the figure, with an unrecorded end
-    # treated as open. Right for pH, where 194 of the 235 entries that record
-    # one record both ends.
+    # treated as open. Right for pH, where 1,237 of the 1,278 entries that
+    # record one record both ends.
     #
     # AT_MOST: one recorded figure has to be at or below the number typed. The
     # figure differs and so does the English, but the test is the same, and in
     # both cases it is the useful direction to ask in:
     #
     #   temp    the coldest it is known to take. A floor rather than a band
-    #           because 789 entries say how cold a plant goes and 63 how hot:
-    #           asked as a band, "survives 45 °C" matches 738 of them — every
+    #           because 1,649 entries say how cold a plant goes and 63 how hot:
+    #           asked as a band, "survives 45 °C" matches 1,596 of them — every
     #           plant whose ceiling simply nobody wrote down. That is a count
-    #           of what the encyclopedia is missing, dressed up as an answer.
+    #           of what the sources are missing, dressed up as an answer. The
+    #           gap got wider with pfaf.org, not narrower: hardiness is the one
+    #           end a plant database states and the other end still nobody does.
     #   height  the tallest it is known to get: the maximum where a range was
     #           given, the single figure otherwise — "growing to 2 m tall" is
     #           stored as a minimum with no maximum. Here no end is missing
-    #           (901 entries give a range, 1,354 a single figure, none a
+    #           (1,325 entries give a range, 1,354 a single figure, none a
     #           maximum alone), so unlike temperature this could have been a
     #           band. It is not, because the question a windowsill asks is
     #           "what stays under 60 cm", not "what is between two heights".
@@ -343,14 +362,33 @@ class Catalog:
             out["family"] = row["family"]
             out["rank"] = row["rank"]
             out["zone"] = row["zone"]
-            # Worth flagging: a minimum read off a hardiness zone is a coarser
-            # figure than one an editor wrote in a sentence, and 453 rows have one.
+            # Which sources the row was built from: "enwiki", "enwiki+pfaf",
+            # and empty on the Wikipedia-only build, which carries the column
+            # but leaves it unset — there is only one source behind it, so it
+            # has nothing to distinguish.
+            out["source"] = row["source"] or ""
+            # The two figures that were derived rather than read. Both are
+            # honest numbers standing in for a coarser statement, and both are
+            # worth distrusting on sight: a minimum read off a hardiness zone
+            # (1,323 rows) and a pH read off pfaf.org's soil bands (1,043).
             out["fromZone"] = bool(row["temp_abs_min_from_zone"])
+            out["phFromBands"] = bool(row["ph_from_bands"])
             out["notes"] = row["notes"] or ""
             out["lead"] = row["lead"] or ""
             # What the flags are about, in the article's words. Search results
             # get the flags but not this: it is a paragraph, times sixty rows.
             out["uses"] = row["uses"] or ""
+            # pfaf.org rates every plant it lists 0-5 for each of three kinds
+            # of usefulness, on 1,132 rows. Unlike the marks a 0 here is a
+            # real answer — somebody looked and found no use — so these are
+            # sent whenever they were recorded, zeroes included, and left out
+            # entirely where nobody rated the plant at all.
+            ratings = {"edible": row["rating_edible"],
+                       "medicinal": row["rating_medicinal"],
+                       "other": row["rating_other_use"]}
+            kept = {k: v for k, v in ratings.items() if v is not None}
+            if kept:
+                out["ratings"] = kept
         return out
 
     def search(self, terms):
@@ -427,9 +465,11 @@ class Catalog:
         """How many rows record each figure at all.
 
         Sent with every search so the page can say why a filter found little:
-        four rows in five have no temperature, and that is a fact about
-        Wikipedia rather than about the search. Cached because replacing the
-        file means copying a new one over and restarting.
+        two rows in three still have no temperature, and that is a fact about
+        the sources rather than about the search. Counted from the file rather
+        than written down here, so the same code tells the truth about either
+        build. Cached because replacing the file means copying a new one over
+        and restarting.
         """
         if self._coverage is not None:
             return self._coverage
@@ -452,6 +492,21 @@ class Catalog:
         finally:
             conn.close()
         return self._coverage
+
+
+def pick_catalog(folder):
+    """Which of the two builds to serve, given a folder.
+
+    The full one wins where it is there. Falling back rather than failing is
+    the point: the repo carries only the Wikipedia-only build, so a fresh clone
+    that has never copied a catalogue across still gets a working one, and the
+    last name in the list is what the startup line reports as missing.
+    """
+    for name in CATALOG_NAMES:
+        path = os.path.join(folder, name)
+        if os.path.exists(path):
+            return path
+    return os.path.join(folder, CATALOG_NAMES[-1])
 
 
 def catalog_terms(query):
@@ -748,15 +803,15 @@ def main():
     parser.add_argument("--data", default=None,
                         help="path to plants.json (default: <web>/data/plants.json)")
     parser.add_argument("--catalog", default=None,
-                        help="path to plants.sqlite (default: alongside plants.json)")
+                        help="path to the catalogue (default: the first of "
+                             + " or ".join(CATALOG_NAMES) + " alongside plants.json)")
     args = parser.parse_args()
 
     data = args.data or os.path.join(args.web, "data", "plants.json")
     if os.path.isdir(data):
         data = os.path.join(data, "plants.json")
 
-    catalog = args.catalog or os.path.join(os.path.dirname(os.path.abspath(data)),
-                                           "plants.sqlite")
+    catalog = args.catalog or pick_catalog(os.path.dirname(os.path.abspath(data)))
 
     Handler.store = Store(data)
     Handler.catalog = Catalog(catalog)

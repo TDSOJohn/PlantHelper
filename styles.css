@@ -569,6 +569,20 @@ input.invalid { border-color: var(--danger); }
    marks, and space below them would be space inside the card. */
 .flags + .value { margin-top: 8px; }
 
+/* pfaf.org's 0-5 ratings, between the marks and the paragraph they qualify.
+   Dimmer than either: a mark is what the sources commit to and the paragraph
+   is what they say, while this is one database's opinion in one digit. */
+.ratings {
+  margin: 8px 0 0;
+  color: var(--ink-dim);
+  font-size: 13px;
+}
+/* And it is what carries the gap above the paragraph on a catalogue entry,
+   where it sits between the two: `.flags + .value` cannot reach past it,
+   because an adjacent sibling is adjacent whether or not it is hidden. On the
+   species form there is no ratings line and that rule still does the work. */
+.ratings + .value { margin-top: 8px; }
+
 .flag {
   padding: 1px 8px;
   border: 1px solid var(--line);
