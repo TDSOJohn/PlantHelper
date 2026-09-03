@@ -26,9 +26,17 @@ const CATALOG_LIGHT = { direct: 'Direct sun', indirect: 'Indirect light',
 
 /* Marks rather than figures: a set flag means the article commits to it, and
    an unset one means nobody wrote it down. Keyed by the field the server
-   sends, so this list is also what the three tick boxes are wired from. */
+   sends. These are what an entry wears as pills; what the filters ask is
+   CATALOG_USES below, which overlaps but is not the same list. */
 const CATALOG_MARKS = { edible: 'Edible', otherUses: 'Other uses',
                         aquatic: 'Aquatic' };
+
+/* The three kinds of usefulness, as the filters name them. Two of them are
+   marks above as well, because a use can be asked about either way; medicinal
+   is only ever a pfaf.org rating, so it has no pill and never says
+   "mentioned". */
+const CATALOG_USES = { edible: 'Edible', medicinal: 'Medicinal',
+                       otherUses: 'Other uses' };
 
 const catalogMarks = (entry) =>
   Object.keys(CATALOG_MARKS).filter((name) => entry[name]).map((n) => CATALOG_MARKS[n]);
@@ -117,21 +125,52 @@ async function catalogRequest(suffix) {
 
 /* ---------- searching ---------- */
 
+/* Every filter but the name, as id suffix -> how to read the control. The
+   list is also what counts the ones that are set for the button, and what
+   `catalogFilters` walks, so a control added here needs nothing else. */
+const CATALOG_FIELDS = {
+  temp: 'text', heightMin: 'text', heightMax: 'text', ph: 'text',
+  kind: 'select', edible: 'select', medicinal: 'select', otherUses: 'select',
+  aquatic: 'check', pfaf: 'check',
+};
+
 const catalogFilters = () => {
-  const filters = {
-    q: $('#cat-q').value.trim(),
-    temp: $('#cat-temp').value.trim(),
-    ph: $('#cat-ph').value.trim(),
-    height: $('#cat-height').value.trim(),
-    kind: $('#cat-kind').value,
-  };
-  // '1' rather than true, because these go straight into the query string and
-  // the server is strict about what a flag is allowed to say.
-  for (const name of Object.keys(CATALOG_MARKS)) {
-    filters[name] = $('#cat-' + name).checked ? '1' : '';
+  const filters = { q: $('#cat-q').value.trim() };
+  for (const name of Object.keys(CATALOG_FIELDS)) {
+    const node = $('#cat-' + name);
+    // '1' rather than true for a tick box, because these go straight into the
+    // query string and the server is strict about what a flag may say.
+    filters[name] = CATALOG_FIELDS[name] === 'check'
+      ? (node.checked ? '1' : '')
+      : node.value.trim();
   }
   return filters;
 };
+
+/** How many filters are set, the name box aside — what the button reports. */
+const catalogSetCount = (filters) =>
+  Object.keys(CATALOG_FIELDS).filter((name) => filters[name]).length;
+
+/**
+ * Puts the button and the Clear beside it in step with the form.
+ *
+ * The count is the point of it: the panel is shut by default, and a filter you
+ * cannot see narrowing a list you can is the one way this arrangement misleads.
+ */
+function drawCatalogControls(filters) {
+  const set = catalogSetCount(filters);
+  const toggle = $('#cat-toggle');
+  const open = !$('#cat-filters').hidden;
+
+  toggle.textContent = set ? 'Filters · ' + set : 'Filters';
+  // Only worth colouring while they are out of sight; with the panel open the
+  // controls speak for themselves.
+  toggle.classList.toggle('active', set > 0 && !open);
+  toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  // Nothing typed anywhere is nothing to clear, and the button is dead weight
+  // above a list. The name counts here where it does not in the tally.
+  $('#cat-clear').hidden = !set && !filters.q;
+}
 
 let catalogTimer = null;
 let catalogRun = 0;              // replies from an older keystroke are dropped
@@ -143,6 +182,8 @@ function queueCatalogSearch(wait) {
 
 async function runCatalogSearch() {
   const filters = catalogFilters();
+  drawCatalogControls(filters);      // before the round trip, not after it
+
   const params = new URLSearchParams();
   for (const name of Object.keys(filters)) {
     if (filters[name]) params.set(name, filters[name]);
@@ -172,19 +213,39 @@ async function runCatalogSearch() {
 function noMatchReason(doc, filters) {
   const cover = doc.coverage || {};
   const said = [];
-  const note = (asked, n, what) => { if (asked && n) said.push('only ' + n + ' ' + what); };
+  const note = (asked, n, what) => {
+    if (!asked || typeof n !== 'number') return;
+    // A count of nought is the most useful answer of the lot — it is what the
+    // Wikipedia-only build has to say about every rating — so it is spelled
+    // out rather than dropped for being falsy.
+    said.push((n ? 'only ' + n : 'none') + ' ' + what);
+  };
 
   note(filters.temp, cover.temp, 'record a temperature');
   note(filters.ph, cover.ph, 'record a soil pH');
-  note(filters.height, cover.height, 'record a height');
+  note(filters.heightMin || filters.heightMax, cover.height, 'record a height');
   note(filters.kind, cover.light, 'record the kind of light');
-  for (const name of Object.keys(CATALOG_MARKS)) {
-    note(filters[name], cover[name], 'are marked ' + CATALOG_MARKS[name].toLowerCase());
+  note(filters.aquatic, cover.aquatic, 'are marked aquatic');
+  note(filters.pfaf, cover.pfaf, 'were filled out from pfaf.org');
+
+  // Each of the three uses asks one of two questions. Asked as a rating they
+  // all draw on the same 1,132 entries, so the three would repeat each other
+  // word for word; the Set below is what keeps that to one sentence.
+  for (const name of Object.keys(CATALOG_USES)) {
+    const asked = filters[name];
+    if (!asked) continue;
+    if (asked === 'mentioned') {
+      note(true, cover[name], 'are marked ' + CATALOG_USES[name].toLowerCase());
+    } else {
+      note(true, cover['rated' + name[0].toUpperCase() + name.slice(1)],
+           'carry a pfaf.org rating');
+    }
   }
 
-  if (!said.length || !cover.total) return '';
-  const last = said.pop();
-  const list = said.length ? said.join(', ') + ' and ' + last : last;
+  const kept = [...new Set(said)];
+  if (!kept.length || !cover.total) return '';
+  const last = kept.pop();
+  const list = kept.length ? kept.join(', ') + ' and ' + last : last;
   return 'Of the ' + cover.total + ' entries, ' + list + '.';
 }
 
@@ -227,6 +288,14 @@ function drawCatalogProblem(err) {
   const mistyped = err.status === 400;
   $('#cat-error').hidden = !mistyped;
   $('#cat-error').textContent = mistyped ? err.message : '';
+
+  // Which means it is inside the panel, and the panel may well be shut — only
+  // the four typed figures can draw a complaint, and every one of them lives
+  // in there. Open it rather than print the message where nobody can see it.
+  if (mistyped && $('#cat-filters').hidden) {
+    $('#cat-filters').hidden = false;
+    drawCatalogControls(catalogFilters());
+  }
 
   const empty = $('#cat-empty');
   empty.hidden = mistyped;

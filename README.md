@@ -314,17 +314,25 @@ cannot tell the difference.
 
 ### What you can search by
 
+The name box is always out; everything else folds away behind a **Filters**
+button and starts shut. Nine controls in front of a list you came here to read
+is a page of form on a phone, and the name answers most searches on its own.
+The button carries a count of what is set — `Filters · 3` — and wears the
+accent while the panel is shut, because a filter you cannot see narrowing a
+list you can is the one way an arrangement like this lies.
+
 | | |
 |---|---|
 | **name** | any title or binomial containing what you type; an exact name sorts first |
-| **survives down to** | entries whose recorded minimum is at or below that temperature |
-| **soil pH** | entries whose recorded range covers that figure |
-| **no taller than** | entries whose recorded height stops at or below that many centimetres |
+| **survives to** | entries whose recorded minimum is at or below that temperature |
+| **height** | entries whose tallest recorded figure falls between the two, either end on its own |
 | **light** | direct sun, indirect light, partial sun, or shade |
-| **edible · other uses · aquatic** | entries the article marks as such |
+| **soil pH** | entries whose recorded range covers that figure |
+| **edible · medicinal · other uses** | mentioned by the article, or rated *n*/5 or better by pfaf |
+| **aquatic** | entries the article marks as such |
+| **only pfaf** | the 1,132 entries filled out from pfaf.org |
 
-The three figures deliberately mean three different things, because the data
-does.
+The figures deliberately mean different things, because the data does.
 
 **Temperature** is asked as a floor: 1,649 entries record how cold a plant
 takes and **63** record how hot, so asking it as a range makes "survives 45 °C"
@@ -333,36 +341,76 @@ That is a count of what the sources are missing, dressed up as an answer. pfaf
 widened that gap rather than closing it: hardiness is exactly the end a plant
 database states, and the other end still nobody does.
 
+**Height** is asked from both ends, and both ends bound the same figure: the
+tallest recorded, which is the top of the range where the article gave one and
+the single figure otherwise ("growing to 2 m tall" is stored as a minimum with
+no maximum). Bounding one figure twice rather than comparing the two recorded
+ends is what keeps it explicable in a line, and it is also the right reading —
+a plant recorded at 1–3 m does reach 2 m, so it answers "at least 2 m". Nothing
+is missing here: 1,325 entries give a range, 1,354 a single figure, none a
+maximum alone. It is the best-covered figure in the catalogue at 2,679 entries
+and the most evenly spread, from under 15 cm to over 30 m. That spread is why
+it gained a floor: a windowsill asks **what stays under 60 cm**, but 853
+entries are over 5 m and a ceiling alone could never ask for those.
+
 **pH** is asked as a range, because 1,237 of the 1,278 entries that record one
 record both ends — a share that went up with pfaf, whose soil bands always give
-two ends because that is what a band is.
+two ends because that is what a band is. It is also the weakest filter here,
+and the page says so in its own hint: **851** of those 1,278 ranges are the
+single band 6.0–8.5, pfaf's "mildly acid to mildly alkaline" read off words
+rather than measured, so asking for pH 6.5 keeps 1,223 of them — 96%. Only the
+extremes bite: pH 5.0 leaves 74.
 
-**Height** is asked as a ceiling: the tallest figure recorded, which is the top
-of the range where the article gave one and the single figure otherwise —
-"growing to 2 m tall" is stored as a minimum with no maximum. Here nothing is
-missing. 1,325 entries give a range, 1,354 a single figure and none a maximum
-alone, so unlike temperature this one *could* have been a range. It is not,
-because the question a windowsill asks is **what stays under 60 cm**, not what
-is between two heights.
+**The three uses** are each asked one of two ways, because a flag and a rating
+are different populations making different claims.
 
-The three marks are yes-or-nothing rather than yes-or-no. They are set from
-what a source commits to, so a 0 means nobody wrote it down — which is why an
-unticked box asks nothing at all rather than asking for the plants that are
-*not* edible. 1,507 entries are marked edible, 1,597 for some other use
-(medicine, oil, dye, fibre — not timber or "ornamental", which are true of most
-of the table and so separate none of it), and 121 as aquatic. They combine:
-edible **and** aquatic is 30 rows, and one of them is a water chestnut.
+*Mentioned* is Wikipedia's, and it is yes-or-nothing rather than yes-or-no: set
+from what a source commits to, so a 0 means nobody wrote it down, which is why
+leaving the control at Any asks nothing at all rather than asking for the
+plants that are *not* edible. 1,507 entries are marked edible and 1,597 for
+some other use (medicine, oil, dye, fibre — not timber or "ornamental", which
+are true of most of the table and so separate none of it). At 30% of the
+catalogue, though, it barely narrows anything.
 
-pfaf's three **0–5 ratings** are shown on an entry but are not a filter. They
-are on 1,132 rows — a fifth of the table — and a filter that silently ignores
-the other four fifths is the same trap the temperature range would have been.
-They also mean something the marks do not: a rating has a real zero, somebody
-having looked and found no use of that kind, so a 0 is printed rather than
-dropped.
+*Rated n/5 or better* is pfaf's, on the 1,132 entries it covers, and it is the
+sharp instrument: **447** entries rate 3/5 or better for food, **225** for
+medicine, **512** for some other use. A rating also has a real zero — somebody
+looked and found no use of that kind — which is why an entry prints its 0 where
+it drops an unset mark. A floor of 0 is not offered as a filter: every rated
+entry clears it, so it would be the same question as "rated at all" wearing a
+number, and Any already asks that.
+
+**Medicinal** exists only as a rating. Wikipedia was never mined for a
+medicinal flag, so the field arrived whole with the pfaf merge — and until the
+merge caught up with the filters, it was the one thing the catalogue knew and
+could not be asked about.
+
+Asking for a rating restricts you to those 1,132 rows, which is the trap the
+temperature range would have been if the page said nothing. It does say
+something: a search that finds nothing prints why in the catalogue's own terms
+— *"Of the 5,065 entries, only 1,132 carry a pfaf.org rating"* — and on the
+Wikipedia-only build, where the answer is none, it says none. **Only pfaf** is
+the same restriction asked for on purpose: those are the entries that state
+soil, shade and hardiness outright instead of having had them read out of
+prose, and it is the difference between a catalogue of 5,065 names and a
+shortlist somebody actually wrote the growing conditions down for.
+
+The marks still combine as they always did: edible **and** aquatic is 30 rows,
+and one of them is a water chestnut.
 
 There is no humidity or hours-of-light filter: 22 and 36 entries record them.
 Neither moved with pfaf, which does not carry either. Both are implemented on
 the server, so adding one is a line of HTML if that ever changes.
+
+Nor is there a filter for growth form, evergreen-or-deciduous, growth rate,
+moisture, drought tolerance or weed potential, all of which the `pfaf` table
+holds and none of which reached `species`: 322 trees, 336 perennials, 250
+shrubs, 92 annuals, 43 bulbs, 37 climbers; 399 evergreen against 300 deciduous;
+245 drought-tolerant; 190 with weed potential. Those are the best candidates
+left, and they are a `plants_db` job rather than an app one — the columns have
+to be denormalised into `species` first. Joining `pfaf` live is not the way:
+the only key is a lowercased binomial with no index, the join takes minutes,
+and the table is absent from the small build entirely.
 
 An entry that records nothing matches nothing — a search cannot honestly return
 "we don't know" as a yes. Most entries record nothing, so when a filter finds
@@ -646,8 +694,9 @@ tokens, no CORS, no cloud account.
     DELETE /api/photo/<id>
     GET    /photos/<id>.jpg
 
-    GET    /api/catalog?q=&temp=&ph=&height=&kind=
-                  &edible=&aquatic=&otherUses=  ->  the reference catalogue
+    GET    /api/catalog?q=&temp=&ph=&heightMin=&heightMax=&kind=
+                  &aquatic=&pfaf=&edible=&medicinal=&otherUses=
+                                                ->  the reference catalogue
     GET    /api/catalog/<pageId>                ->  one entry in full
 
 A `PUT` is **merged** with what is already on disk rather than replacing it —

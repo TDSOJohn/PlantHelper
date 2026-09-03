@@ -562,6 +562,54 @@ input.invalid { border-color: var(--danger); }
   accent-color: var(--accent);
 }
 
+/* ---------- the catalogue's filters ----------
+
+   Folded away by default and opened by the button above them. Nine controls
+   is a page of form on a phone in front of a list you came here to read, and
+   the name box answers most searches on its own — so these wait until asked
+   for, and the button counts what is set so a hidden filter cannot quietly
+   narrow a visible result.
+
+   These rules have to stay BELOW the base `input[type="text"]` block, which is
+   100% wide at the same specificity: only coming later keeps the boxes from
+   stretching across the panel, exactly as `.inline input` above. */
+.filters {
+  display: grid;
+  /* Two columns wherever 19em of them fit and one otherwise, which on the
+     720px the app is capped at means two on a laptop and one on a phone.
+     The min() is what stops a column narrower than its own minimum from
+     pushing the panel out sideways. */
+  grid-template-columns: repeat(auto-fit, minmax(min(19em, 100%), 1fr));
+  gap: 10px 18px;
+  margin-top: 14px;
+  padding: 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.filter {
+  display: flex;
+  flex-wrap: wrap;      /* the two height boxes and their words, on a small phone */
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+}
+/* The word that names the row, held to one width so the boxes line up down
+   the column rather than starting wherever the label happened to end. */
+.filter > span:first-child { flex: 0 0 6em; color: var(--ink-dim); }
+.filter input { flex: none; width: 3.8em; padding: 8px 10px; text-align: center; }
+/* A select carries whole sentences here ("Rated 3/5 or better"), so unlike an
+   inline one it takes what is left of the row instead of sizing to a guess. */
+.filter select { flex: 1; min-width: 0; padding: 8px 10px; }
+
+/* The tick boxes and the two paragraphs are about the panel, not about one
+   column of it, so they run the full width underneath. */
+.filters .checks,
+.filters .hint { grid-column: 1 / -1; }
+.filters .checks { margin-top: 2px; }
+.filters .hint { margin-top: 2px; font-size: 13px; }
+
 /* ---------- the catalogue's marks ----------
 
    Read at a glance down a list of sixty, which is what a badge is for and what
@@ -675,4 +723,8 @@ input.invalid { border-color: var(--danger); }
 .btn:active { opacity: 0.7; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .btn.danger { color: var(--danger); }
+/* A button whose panel is shut over something that is set — the catalogue's
+   Filters. The same accent a chosen tab carries, so the count beside it reads
+   as state rather than as decoration. */
+.btn.active { border-color: var(--accent); color: var(--accent); }
 .btn[disabled] { opacity: 0.5; cursor: default; }

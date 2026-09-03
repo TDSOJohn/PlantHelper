@@ -34,13 +34,22 @@ $('#q-f-species').oninput = applySeedSpecies;
 // Anything typed arrives a character at a time, and a lone "-" is not a
 // temperature, so it waits for a pause. Anything picked searches at once.
 $('#cat-q').oninput = () => queueCatalogSearch(CATALOG_WAIT);
-$('#cat-temp').oninput = () => queueCatalogSearch(CATALOG_WAIT);
-$('#cat-ph').oninput = () => queueCatalogSearch(CATALOG_WAIT);
-$('#cat-height').oninput = () => queueCatalogSearch(CATALOG_WAIT);
-$('#cat-kind').onchange = () => queueCatalogSearch(0);
-for (const name of Object.keys(CATALOG_MARKS)) {
-  $('#cat-' + name).onchange = () => queueCatalogSearch(0);
+for (const name of Object.keys(CATALOG_FIELDS)) {
+  const node = $('#cat-' + name);
+  if (CATALOG_FIELDS[name] === 'text') node.oninput = () => queueCatalogSearch(CATALOG_WAIT);
+  else node.onchange = () => queueCatalogSearch(0);
 }
+
+// The panel starts shut and stays however it was left, the same way the boxes
+// inside it do: coming back from an entry should land on the search that found
+// it. Nothing is searched on opening or shutting it — the filters have not
+// changed — but the button has to be redrawn, because its colour says whether
+// what is set is currently out of sight.
+$('#cat-toggle').onclick = () => {
+  const panel = $('#cat-filters');
+  panel.hidden = !panel.hidden;
+  drawCatalogControls(catalogFilters());
+};
 
 // Enter on a phone keyboard submits; there is nothing to submit, and letting
 // it through would reload the page and lose the whole search.

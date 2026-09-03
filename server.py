@@ -12,7 +12,8 @@ Serves the static page, one JSON endpoint and the plant photos:
     PUT    /api/photo/<id>    <-  raw JPEG bytes (the browser resizes to 512x512)
     DELETE /api/photo/<id>
     GET    /photos/<id>.jpg
-    GET    /api/catalog?q=&temp=&ph=&height=&kind=&edible=&aquatic=&otherUses=
+    GET    /api/catalog?q=&temp=&ph=&heightMin=&heightMax=&kind=&aquatic=&pfaf=
+                        &edible=&medicinal=&otherUses=
                               ->  the reference catalogue
     GET    /api/catalog/<pageId>            ->  one entry in full
 
@@ -250,50 +251,83 @@ class Catalog:
     there is one shape to read here and no build to special-case.
     """
 
-    # What a filter may ask about. Two shapes for the numbers, because the
-    # data has two.
+    # What a filter may ask about. Three shapes for the numbers, because the
+    # data has three.
     #
     # BANDS: the recorded range has to cover the figure, with an unrecorded end
     # treated as open. Right for pH, where 1,237 of the 1,278 entries that
-    # record one record both ends.
+    # record one record both ends — though see the warning in the page's own
+    # hint: 851 of those ranges are the single band 6.0–8.5, so a pH question
+    # keeps 96% of what records a pH at all and is the weakest filter here.
     #
-    # AT_MOST: one recorded figure has to be at or below the number typed. The
-    # figure differs and so does the English, but the test is the same, and in
-    # both cases it is the useful direction to ask in:
+    # AT_MOST / AT_LEAST: one recorded figure has to be at or below — or at or
+    # above — the number typed.
     #
-    #   temp    the coldest it is known to take. A floor rather than a band
-    #           because 1,649 entries say how cold a plant goes and 63 how hot:
-    #           asked as a band, "survives 45 °C" matches 1,596 of them — every
-    #           plant whose ceiling simply nobody wrote down. That is a count
-    #           of what the sources are missing, dressed up as an answer. The
-    #           gap got wider with pfaf.org, not narrower: hardiness is the one
-    #           end a plant database states and the other end still nobody does.
-    #   height  the tallest it is known to get: the maximum where a range was
-    #           given, the single figure otherwise — "growing to 2 m tall" is
-    #           stored as a minimum with no maximum. Here no end is missing
-    #           (1,325 entries give a range, 1,354 a single figure, none a
-    #           maximum alone), so unlike temperature this could have been a
-    #           band. It is not, because the question a windowsill asks is
-    #           "what stays under 60 cm", not "what is between two heights".
+    #   temp       the coldest it is known to take. A floor rather than a band
+    #              because 1,649 entries say how cold a plant goes and 63 how
+    #              hot: asked as a band, "survives 45 °C" matches 1,596 of
+    #              them — every plant whose ceiling simply nobody wrote down.
+    #              That is a count of what the sources are missing, dressed up
+    #              as an answer. The gap got wider with pfaf.org, not narrower:
+    #              hardiness is the one end a plant database states and the
+    #              other end still nobody does.
+    #   heightMin  both ends of the height question, and both bound the same
+    #   heightMax  figure: the tallest it is known to get, which is the maximum
+    #              where a range was given and the single figure otherwise
+    #              ("growing to 2 m tall" is stored as a minimum with no
+    #              maximum). Bounding one figure from both sides rather than
+    #              comparing the two recorded ends is what makes the pair
+    #              explicable in a line — and it is the right reading: a plant
+    #              recorded at 1–3 m does reach 2 m, so it answers "at least
+    #              2 m". Height is the best-covered figure in the catalogue
+    #              (2,679 entries) and the most evenly spread, from under 15 cm
+    #              to over 30 m, which is why it is worth asking from both
+    #              ends: 853 entries are over 5 m, and "no taller than" alone
+    #              could never ask for those.
     BANDS = {
         "ph": ("ph_min", "ph_max"),
         "humidity": ("humidity_min", "humidity_max"),
     }
     AT_MOST = {
         "temp": "COALESCE(temp_abs_min, temp_avg_min)",
-        "height": "COALESCE(height_max_cm, height_min_cm)",
+        "heightMax": "COALESCE(height_max_cm, height_min_cm)",
+    }
+    AT_LEAST = {
+        "heightMin": "COALESCE(height_max_cm, height_min_cm)",
     }
 
     # Yes-or-no, and only yes is worth asking. The flags are set from what an
     # article commits to, so a 0 means nobody wrote it down rather than that
     # the plant is inedible or dry-footed: "the ones marked edible" is a
     # question this data can answer, "the ones that are not" is not.
+    #
+    # These three are also what an entry shows as marks, which is why all
+    # three are here where only `aquatic` is still asked about as a flag: the
+    # other two are asked about through USES below, which can say more.
     FLAGS = {"edible": "edible", "aquatic": "aquatic", "otherUses": "other_uses"}
+
+    # The three kinds of usefulness, each asked about in one of two ways.
+    #
+    # A flag and a rating are different populations and different claims. The
+    # flag is Wikipedia's: 1,507 articles mention eating the plant, which is
+    # 30% of the catalogue and so barely narrows anything. The rating is
+    # pfaf.org's 0-5, on the 1,132 entries it covers, and it is the sharp
+    # instrument — 447 entries rate 3/5 or better for food, 225 for medicine.
+    #
+    # So one control per kind, offering "mentioned" (the flag) or a floor on
+    # the rating. Medicinal has no flag to offer because Wikipedia was never
+    # mined for one; it arrived whole with the pfaf.org merge, and until now
+    # nothing could search it.
+    USES = {
+        "edible": ("edible", "rating_edible"),
+        "medicinal": (None, "rating_medicinal"),
+        "otherUses": ("other_uses", "rating_other_use"),
+    }
 
     @classmethod
     def figures(cls):
         """Every filter that takes a number."""
-        return tuple(cls.BANDS) + tuple(cls.AT_MOST)
+        return tuple(cls.BANDS) + tuple(cls.AT_MOST) + tuple(cls.AT_LEAST)
 
     # Wikipedia describes light four ways. The app's own records know only the
     # first two, so importing one of the others has to choose — but a search
@@ -412,19 +446,42 @@ class Catalog:
                          .format(low=low, high=high))
             args += [terms[name], terms[name]]
 
-        for name, column in self.AT_MOST.items():
-            if name not in terms:
-                continue
-            where.append("({col} IS NOT NULL AND {col} <= ?)".format(col=column))
-            args.append(terms[name])
+        for shape, test in ((self.AT_MOST, "<="), (self.AT_LEAST, ">=")):
+            for name, column in shape.items():
+                if name not in terms:
+                    continue
+                where.append("({col} IS NOT NULL AND {col} {test} ?)"
+                             .format(col=column, test=test))
+                args.append(terms[name])
 
-        for name, column in self.FLAGS.items():
-            if terms.get(name):
-                where.append(column + " = 1")
+        # Only `aquatic` is still asked about as a bare flag; the other two
+        # marks are reached through USES, which can also ask the rating.
+        if terms.get("aquatic"):
+            where.append("aquatic = 1")
+
+        for name, (flag, rating) in self.USES.items():
+            asked = terms.get(name)
+            if not asked:
+                continue
+            if asked == "mentioned":
+                where.append(flag + " = 1")
+            else:
+                where.append("({col} IS NOT NULL AND {col} >= ?)".format(col=rating))
+                args.append(asked)
 
         if terms.get("kind"):
             where.append("light_kind = ?")
             args.append(terms["kind"])
+
+        # The 1,132 entries pfaf.org filled out: the ones that state soil,
+        # shade and hardiness outright instead of having had them read out of
+        # prose, and the only ones carrying a rating. Worth asking for on its
+        # own — it is the difference between a catalogue of 5,065 names and a
+        # shortlist of plants somebody actually wrote the growing conditions
+        # down for. Empty on the Wikipedia-only build, which matches nothing,
+        # and the page says so rather than looking broken.
+        if terms.get("pfaf"):
+            where.append("source = 'enwiki+pfaf'")
 
         clause = (" WHERE " + " AND ".join(where)) if where else ""
         order, order_args = "score DESC, title", []
@@ -486,9 +543,18 @@ class Catalog:
                 "light": count("light_kind IS NOT NULL"),
                 "height": count("height_min_cm IS NOT NULL"),
                 "notes": count("notes IS NOT NULL AND notes != ''"),
+                # The pfaf.org half of the merge, and the ceiling on every
+                # rating question: nothing outside these rows carries one.
+                "pfaf": count("source = 'enwiki+pfaf'"),
             }
             for name, column in self.FLAGS.items():
                 self._coverage[name] = count(column + " = 1")
+            # Counted per kind rather than taken from `pfaf` above, because a
+            # future build may rate one kind and not another, and because the
+            # page quotes these back at somebody whose filter found nothing.
+            for name, (flag, rating) in self.USES.items():
+                self._coverage["rated" + name[0].upper() + name[1:]] = \
+                    count(rating + " IS NOT NULL")
         finally:
             conn.close()
         return self._coverage
@@ -545,13 +611,30 @@ def catalog_terms(query):
     # A flag is on or absent. Strict about the value rather than treating
     # anything non-empty as yes, because the page writes these itself and a
     # typo there should show up here rather than quietly filter the table.
-    for name in Catalog.FLAGS:
+    for name in ("aquatic", "pfaf"):
         text = first(name)
         if not text or text == "0":
             continue
         if text != "1":
             return None, "'%s' must be 1 or absent" % name
         terms[name] = True
+
+    # A use is asked about either as the mark ("mentioned") or as a floor on
+    # pfaf.org's 0-5 rating. A floor of 0 is not offered: every rated entry
+    # clears it, so it would be the same question as "rated at all" wearing a
+    # number, and the control has "any" for that already.
+    for name, (flag, rating) in Catalog.USES.items():
+        text = first(name)
+        if not text:
+            continue
+        if text == "mentioned":
+            if flag is None:
+                return None, "'%s' is only rated, never merely mentioned" % name
+            terms[name] = "mentioned"
+        elif text in ("1", "2", "3", "4", "5"):
+            terms[name] = int(text)
+        else:
+            return None, ("'%s' must be 'mentioned', 1-5, or absent" % name)
 
     return terms, ""
 

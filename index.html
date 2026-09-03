@@ -354,26 +354,33 @@
              autocapitalize="none" autocorrect="off" spellcheck="false"
              placeholder="monstera">
 
-      <fieldset class="group">
-        <legend>Conditions it has to meet</legend>
-        <div class="inline">
-          <span>Survives down to</span>
+      <!-- The name box is the control you reach for nine times in ten, so it
+           stays out here and the other nine fold away behind this. The button
+           counts what is set, because a filter you cannot see narrowing a
+           result you can is the one way a panel like this lies. -->
+      <div class="row">
+        <button id="cat-toggle" class="btn" type="button"
+                aria-expanded="false" aria-controls="cat-filters">Filters</button>
+        <button id="cat-clear" class="btn" type="button" hidden>Clear</button>
+      </div>
+
+      <div id="cat-filters" class="filters" hidden>
+        <div class="filter">
+          <span>Survives to</span>
           <input id="cat-temp" type="text" inputmode="decimal" maxlength="6"
                  autocomplete="off" placeholder="-5" aria-label="Coldest it must survive, °C">
           <span>°C</span>
         </div>
-        <div class="inline">
-          <span>Soil pH</span>
-          <input id="cat-ph" type="text" inputmode="decimal" maxlength="5"
-                 autocomplete="off" placeholder="6.5" aria-label="Soil pH its range must include">
-        </div>
-        <div class="inline">
-          <span>No taller than</span>
-          <input id="cat-height" type="text" inputmode="decimal" maxlength="6"
+        <div class="filter">
+          <span>Height</span>
+          <input id="cat-heightMin" type="text" inputmode="decimal" maxlength="6"
+                 autocomplete="off" placeholder="0" aria-label="Shortest it may grow, cm">
+          <span>to</span>
+          <input id="cat-heightMax" type="text" inputmode="decimal" maxlength="6"
                  autocomplete="off" placeholder="60" aria-label="Tallest it may grow, cm">
           <span>cm</span>
         </div>
-        <div class="inline">
+        <div class="filter">
           <span>Light</span>
           <select id="cat-kind" aria-label="Kind of light">
             <option value="">Any</option>
@@ -383,22 +390,66 @@
             <option value="shade">Shade</option>
           </select>
         </div>
-        <div class="checks">
-          <label><input id="cat-edible" type="checkbox"> Edible</label>
-          <label><input id="cat-otherUses" type="checkbox"> Other uses</label>
-          <label><input id="cat-aquatic" type="checkbox"> Aquatic</label>
+        <div class="filter">
+          <span>Soil pH</span>
+          <input id="cat-ph" type="text" inputmode="decimal" maxlength="5"
+                 autocomplete="off" placeholder="6.5" aria-label="Soil pH its range must include">
         </div>
-        <p class="hint">Temperature and height match a recorded figure at or below
-          what you type — the coldest an entry is known to take, the tallest it is
-          known to get. pH matches a recorded range that covers the figure. The
-          three marks come from what the article says, so unticked means it went
-          unmentioned rather than that the answer is no. An entry that records
-          nothing matches nothing, and most record nothing.</p>
-        <p id="cat-error" class="hint error" hidden></p>
-      </fieldset>
 
-      <div class="row">
-        <button id="cat-clear" class="btn" type="button">Clear</button>
+        <!-- Wikipedia says whether a plant is edible; pfaf.org says how well.
+             One control per kind, offering either. "Mentioned" is the article's
+             word and covers a third of the catalogue; a rating is pfaf.org's
+             0-5 and is the one that narrows. Medicinal has no "mentioned"
+             because Wikipedia was never mined for one. -->
+        <div class="filter">
+          <span>Edible</span>
+          <select id="cat-edible" aria-label="How edible">
+            <option value="">Any</option>
+            <option value="mentioned">Mentioned</option>
+            <option value="1">Rated 1/5 or better</option>
+            <option value="2">Rated 2/5 or better</option>
+            <option value="3">Rated 3/5 or better</option>
+            <option value="4">Rated 4/5 or better</option>
+            <option value="5">Rated 5/5</option>
+          </select>
+        </div>
+        <div class="filter">
+          <span>Medicinal</span>
+          <select id="cat-medicinal" aria-label="How medicinal">
+            <option value="">Any</option>
+            <option value="1">Rated 1/5 or better</option>
+            <option value="2">Rated 2/5 or better</option>
+            <option value="3">Rated 3/5 or better</option>
+            <option value="4">Rated 4/5 or better</option>
+            <option value="5">Rated 5/5</option>
+          </select>
+        </div>
+        <div class="filter">
+          <span>Other uses</span>
+          <select id="cat-otherUses" aria-label="How useful otherwise">
+            <option value="">Any</option>
+            <option value="mentioned">Mentioned</option>
+            <option value="1">Rated 1/5 or better</option>
+            <option value="2">Rated 2/5 or better</option>
+            <option value="3">Rated 3/5 or better</option>
+            <option value="4">Rated 4/5 or better</option>
+            <option value="5">Rated 5/5</option>
+          </select>
+        </div>
+
+        <div class="checks">
+          <label><input id="cat-aquatic" type="checkbox"> Aquatic</label>
+          <label><input id="cat-pfaf" type="checkbox"> Only the 1,132 filled out from pfaf.org</label>
+        </div>
+
+        <p class="hint">Temperature is the coldest an entry is known to take;
+          height bounds the tallest it is known to get, from both ends. Ratings
+          are pfaf.org's, on the entries it covers; "Mentioned" is only that the
+          article brought the use up, so leaving it at Any means unmentioned
+          rather than no. pH narrows least — most recorded ranges are bands
+          somebody named rather than figures anyone measured. An entry that
+          records nothing matches nothing, and a quarter of them record nothing.</p>
+        <p id="cat-error" class="hint error" hidden></p>
       </div>
     </form>
 
