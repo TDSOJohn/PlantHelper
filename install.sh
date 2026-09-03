@@ -39,12 +39,15 @@ install -m 755 -t "$APP_DIR" "$SRC/server.py"
 echo "preparing $DATA_DIR"
 install -d -m 750 -o "$SERVICE_USER" -g "$SERVICE_USER" "$DATA_DIR"
 
-# The reference catalogue. Two builds may be sitting in data/, and the fuller
-# one wins: plants.full.sqlite is Wikipedia plus pfaf.org and does not travel
-# in the repo, because pfaf.org grants no reuse licence — you copy it across by
-# hand. plants.sqlite is the Wikipedia-only build, which does travel, so a
-# clone that has never had a copy made to it still installs a working
-# catalogue. Either is installed under the one name the server looks for.
+# The reference catalogue. Three builds may be sitting in data/, and the first
+# one found wins. plants.export.sqlite is Wikipedia plus pfaf.org and is what
+# gets copied to the Pi; plants.full.sqlite is the same catalogue with the raw
+# pfaf.org crawl still in it, which the app never reads and which is only ever
+# on the machine that built it. Neither travels in the repo, because pfaf.org
+# grants no reuse licence — you copy one across by hand. plants.sqlite is the
+# Wikipedia-only build, which does travel, so a clone that has never had a copy
+# made to it still installs a working catalogue. Whichever is found is
+# installed under the one name the server looks for.
 #
 # Safe to replace wholesale because it is derived: plants_db rebuilds it from
 # the sources, and nothing in the app ever writes to it. plants.json is the
@@ -56,7 +59,7 @@ install -d -m 750 -o "$SERVICE_USER" -g "$SERVICE_USER" "$DATA_DIR"
 # every search, and one landing in the window where a plain copy has truncated
 # it gets "Cannot read the catalogue" — about one request in 400 when measured,
 # which is rare enough to be baffling rather than obviously self-inflicted.
-for name in plants.full.sqlite plants.sqlite; do
+for name in plants.export.sqlite plants.full.sqlite plants.sqlite; do
   [ -f "$SRC/data/$name" ] || continue
   echo "installing the catalogue ($name) into $DATA_DIR"
   install -m 640 -o "$SERVICE_USER" -g "$SERVICE_USER" \

@@ -343,7 +343,7 @@
   </section>
 
   <!-- ---------- the reference catalogue ----------
-       Read-only, and the one part of the app that needs the Pi: the 5,065
+       Read-only, and the one part of the app that needs the Pi: the 11,094
        entries live in a SQLite file there and are searched there, not held on
        the phone. Reached from the bar rather than from Species, which is why
        this is the one read-only page with no back arrow. -->
@@ -379,6 +379,27 @@
           <input id="cat-heightMax" type="text" inputmode="decimal" maxlength="6"
                  autocomplete="off" placeholder="60" aria-label="Tallest it may grow, cm">
           <span>cm</span>
+        </div>
+        <!-- pfaf.org's own eleven words for what kind of plant it is, on
+             7,117 entries. The one axis this catalogue is worth browsing
+             along rather than searching: every other control here narrows a
+             list you already have a name for. -->
+        <div class="filter">
+          <span>Growth form</span>
+          <select id="cat-growthForm" aria-label="Kind of plant">
+            <option value="">Any</option>
+            <option value="annual">Annual</option>
+            <option value="bamboo">Bamboo</option>
+            <option value="biennial">Biennial</option>
+            <option value="bulb">Bulb</option>
+            <option value="climber">Climber</option>
+            <option value="corm">Corm</option>
+            <option value="fern">Fern</option>
+            <option value="lichen">Lichen</option>
+            <option value="perennial">Perennial</option>
+            <option value="shrub">Shrub</option>
+            <option value="tree">Tree</option>
+          </select>
         </div>
         <div class="filter">
           <span>Light</span>
@@ -439,16 +460,18 @@
 
         <div class="checks">
           <label><input id="cat-aquatic" type="checkbox"> Aquatic</label>
-          <label><input id="cat-pfaf" type="checkbox"> Only the 1,132 filled out from pfaf.org</label>
+          <label><input id="cat-pfaf" type="checkbox"> Only the 7,161 with a pfaf.org page</label>
         </div>
 
         <p class="hint">Temperature is the coldest an entry is known to take;
-          height bounds the tallest it is known to get, from both ends. Ratings
-          are pfaf.org's, on the entries it covers; "Mentioned" is only that the
-          article brought the use up, so leaving it at Any means unmentioned
-          rather than no. pH narrows least — most recorded ranges are bands
-          somebody named rather than figures anyone measured. An entry that
-          records nothing matches nothing, and a quarter of them record nothing.</p>
+          height bounds the tallest it is known to get, from both ends. Growth
+          form and the ratings are pfaf.org's, on the entries it covers;
+          "Mentioned" is only that the source brought the use up, so leaving it
+          at Any means unmentioned rather than no. pH is the one to distrust:
+          7,305 entries record one, but 6,021 of them record the same band
+          6.0&#8211;8.5, so any question inside it keeps almost everything and
+          separates nothing. An entry that records nothing matches nothing, and
+          a sixth of them record nothing.</p>
         <p id="cat-error" class="hint error" hidden></p>
       </div>
     </form>
@@ -480,6 +503,10 @@
           <span class="from" id="c-ph-from"></span>
         </div>
         <div class="fact">
+          <span class="key">Soil moisture</span>
+          <span class="val" id="c-moisture"></span>
+        </div>
+        <div class="fact">
           <span class="key">Light</span>
           <span class="val" id="c-light"></span>
         </div>
@@ -488,12 +515,27 @@
           <span class="val" id="c-height"></span>
         </div>
         <div class="fact">
+          <span class="key">Growth form</span>
+          <span class="val" id="c-form"></span>
+        </div>
+        <div class="fact">
           <span class="key">Family</span>
           <span class="val" id="c-family"></span>
         </div>
         <div class="fact">
           <span class="key">Hardiness</span>
           <span class="val" id="c-zone"></span>
+        </div>
+        <!-- Both read three ways rather than two: a word here is pfaf.org
+             answering, "Not recorded" is pfaf.org never having been asked.
+             "Not tolerant" and "No" are answers, not blanks. -->
+        <div class="fact">
+          <span class="key">Drought</span>
+          <span class="val" id="c-drought"></span>
+        </div>
+        <div class="fact">
+          <span class="key">Weed potential</span>
+          <span class="val" id="c-weedy"></span>
         </div>
       </div>
 

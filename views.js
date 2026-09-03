@@ -61,12 +61,12 @@ function refresh() {
   const path = route();
   if (path === '/new' || path === '/s/new' || path === '/seed/new') return;
   if (/\/edit$/.test(path)) return;
-  if (/^\/s\/from\/\d+$/.test(path)) return;   // a form half filled from the catalogue
+  if (/^\/s\/from\/-?\d+$/.test(path)) return;  // a form half filled from the catalogue
   // The catalogue is not made of plants. Nothing a sync brings back can change
   // what is on screen there, and re-rendering it would re-run the search over
   // the network: a second round trip for the same answer, landing under
   // whatever was being read at the time.
-  if (path === '/catalog' || /^\/c\/\d+$/.test(path)) return;
+  if (path === '/catalog' || /^\/c\/-?\d+$/.test(path)) return;
   render();
 }
 
@@ -82,10 +82,14 @@ function render() {
   if (path === '/seed/new') return renderSeedForm(null);
   if (path === '/catalog') return renderCatalog();
 
-  const entryMatch = path.match(/^\/c\/(\d+)$/);
+  // The minus sign is part of the id, not a typo: the 6,029 catalogue
+  // entries pfaf.org contributed on its own have no Wikipedia page id and
+  // carry a negative one instead, so a pattern of digits alone would drop
+  // every one of them on the floor and quietly render Today.
+  const entryMatch = path.match(/^\/c\/(-?\d+)$/);
   if (entryMatch) return renderCatalogEntry(entryMatch[1]);
 
-  const filled = path.match(/^\/s\/from\/(\d+)$/);
+  const filled = path.match(/^\/s\/from\/(-?\d+)$/);
   if (filled) return renderSpeciesFromCatalog(filled[1]);
 
   const seedEdit = path.match(/^\/seed\/([^/]+)\/edit$/);

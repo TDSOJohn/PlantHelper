@@ -18,7 +18,7 @@ of record are the three pages that make one.
 
 The bar is for going places, and it got the [catalogue](#catalogue) in exchange.
 That was a button at the foot of **Species**, which is a strange place for it:
-5,065 entries you can read without owning a plant are not a footnote to the
+11,094 entries you can read without owning a plant are not a footnote to the
 handful of species you keep, and reaching them meant opening a list first. It
 is a tab now, and **Add a species** has the top of that page to itself.
 
@@ -47,7 +47,8 @@ catalog.js                      the reference catalogue screens
 server.py                       static files, /api/plants, photos
 plants.service  install.sh      run it under systemd
 data/plants.sqlite              the reference catalogue
-data/plants.full.sqlite         the same, with pfaf.org — not in git
+data/plants.export.sqlite       the same, with pfaf.org — not in git
+data/plants.full.sqlite         the same again, plus the pfaf.org crawl
 ```
 
 ## Name and species
@@ -219,7 +220,7 @@ is a normal intermediate state, and the app treats it as one — the plant simpl
 falls back to its own figures until the species arrives.
 
 There *is* a SQLite file on the Pi, and it is the exception that shows the
-rule: the [catalogue](#catalogue) below is 5,065 rows nobody edits, rebuilt
+rule: the [catalogue](#catalogue) below is 11,094 rows nobody edits, rebuilt
 from scratch whenever the sources behind it are re-mined, and never syncs
 anywhere.
 Every argument above turns on your plants being small, precious and offline.
@@ -227,33 +228,49 @@ None of the three is true of an encyclopedia.
 
 ## Catalogue
 
-5,065 species built by [../plants_db](../plants_db) — the four condition groups
-this app uses, plus a height and three yes-or-nothing marks that only make
-sense on a catalogue. The **Catalogue** tab searches it.
+11,094 species built by [../plants_db](../plants_db) — the four condition
+groups this app uses, plus a height, a growth form, a soil moisture, three
+yes-or-nothing marks and two three-state flags that only make sense on a
+catalogue. The **Catalogue** tab searches it.
 
-Two sources are behind those rows. Every one of them began as an English
-Wikipedia article; **1,132** have since been filled out from
-[pfaf.org](https://pfaf.org), a plant-uses database that states soil, shade and
-hardiness outright where an encyclopedia had to be mined for them. It shows in
-the coverage — soil pH went from 235 rows to **1,278**, the kind of light from
-1,224 to **2,025**, a minimum temperature from 789 to **1,649** — and it is why
-the section below has two labels to distrust rather than one. An entry says
-which sources it came from at the foot of its page.
+Two sources are behind those rows, in three combinations that an entry names at
+the foot of its page. **3,933** are an English Wikipedia article and nothing
+else. **1,132** are an article filled out from [pfaf.org](https://pfaf.org), a
+plant-uses database that states soil, shade and hardiness outright where an
+encyclopedia had to be mined for them. The other **6,029** are plants pfaf.org
+lists and Wikipedia has no article for at all.
+
+It shows in the coverage — the kind of light went from 1,224 rows to **8,053**,
+a minimum temperature from 789 to **5,746**, soil pH from 235 to **7,305** —
+and it is why the section below has two labels to distrust rather than one.
+
+Those 6,029 carry a **negative** page id. The column is Wikipedia's page id and
+they have none, so `plants_db` hands them a key that obviously is not one
+rather than inventing a number a future dump could collide with. Nothing in the
+app minds, and the one thing it forbids — a link to Wikipedia — is the one
+thing that would have been a lie.
 
 It is the one part of the app that needs the Pi. Your plants are held in the
 browser and work offline; an encyclopedia has no business in `localStorage`, so
 the catalogue is queried on the server and the view says so plainly when it
 cannot be reached.
 
-### Two catalogues
+### Three catalogues
 
-The file comes in two builds, and which one you have is a licensing question
-rather than a technical one:
+The file comes in three builds. Which of the two full ones you have is a
+storage question; whether you have one at all is a licensing question:
 
 | | | |
 |---|---|---|
-| `data/plants.sqlite` | 4.4 MB | Wikipedia only. **In the repo.** |
-| `data/plants.full.sqlite` | 34.5 MB | Wikipedia + pfaf.org. **Not in the repo**, and in `.gitignore`. |
+| `data/plants.sqlite` | 4.6 MB | Wikipedia only, 5,065 rows. **In the repo.** |
+| `data/plants.export.sqlite` | 7.9 MB | Wikipedia + pfaf.org, 11,094 rows. The one that gets deployed. **Not in the repo**, and in `.gitignore`. |
+| `data/plants.full.sqlite` | 40.3 MB | The same 11,094 rows with the raw pfaf.org crawl still attached. Lives only on the machine that built it. **Not in the repo**, and in `.gitignore`. |
+
+The last two hold the identical catalogue. The 32 MB between them is the `pfaf`
+table — the crawl in full, one row per page fetched, kept so a later reading of
+those pages needs no second crawl. The app has never queried it and `server.py`
+does not know it exists, so the copy that travels to the Pi is the one without
+it.
 
 pfaf.org's pages carry `© Plants For A Future` and no reuse grant anyone can
 find — the footer's link to a terms page is commented out in the HTML, so there
@@ -269,53 +286,66 @@ so, and a clone with no catalogue copied to it still installs a working one.
 `git checkout data/plants.sqlite` is the way back to it if the full build ever
 has to go away in a hurry.
 
-**Both builds carry the same columns.** The Wikipedia-only one leaves the five
-pfaf.org added — `source`, the three 0–5 ratings, and `ph_from_bands` — empty
+**All three carry the same columns.** The Wikipedia-only one leaves the nine
+pfaf.org added — `source`, the three 0–5 ratings, `ph_from_bands`, and the
+`growth_form` / `moisture` / `drought_tolerant` / `weed_potential` four — empty
 rather than omitting them, so there is one shape for `server.py` to read and no
-build to special-case. What it does not carry is the `pfaf` table itself, which
-holds the crawl in full and which the app never queries.
+build to special-case. It also carries the three indexes those columns brought
+with them, over nothing, for the same reason: one schema, checked by eye in one
+`.schema` diff.
 
-`server.py` and `install.sh` both take the full build where it is there and
-fall back to the other, so nothing has to be configured either way. The startup
-line says which one you got:
+Empty is the honest state there rather than a placeholder. Every one of those
+nine is pfaf.org's, and a build that exists so it can be redistributed is a
+build with no pfaf.org in it. What follows from that is that **Only pfaf**,
+every rating filter and the growth-form filter all match nothing on the
+Wikipedia-only build — and the page says so in words rather than looking
+broken.
+
+`server.py` and `install.sh` both walk the three in the order above — export,
+full, Wikipedia-only — and take the first that is there, so nothing has to be
+configured either way. The startup line says which one you got:
 
 ```
-plants: catalogue /home/…/data/plants.full.sqlite (ready)
+plants: catalogue /home/…/data/plants.export.sqlite (ready)
 ```
 
 ### Copying the full build across
 
-It does not travel in the repo, so it is copied by hand — once per rebuild,
-which is a few times a year. Into the Pi's clone, not into `/var/lib`, so that
-`install.sh` still stages and restarts it properly:
+Neither full build travels in the repo, so they are made by hand — once per
+rebuild, which is a few times a year. Into the Pi's clone, not into `/var/lib`,
+so that `install.sh` still stages and restarts it properly:
 
 ```sh
-# on the machine that built it: one copy for local development,
+# on the machine that built it: the full build, crawl and all, for provenance
 cp ../plants_db/plants.sqlite data/plants.full.sqlite
-# and one for the Pi, into its clone
-scp data/plants.full.sqlite plants.local:plants/data/plants.full.sqlite
 
-# then on the Pi, as usual
+# and the deployable one, which is that minus the table nothing reads
+cp data/plants.full.sqlite data/plants.export.sqlite
+python3 -c "import sqlite3
+sqlite3.connect('data/plants.export.sqlite').executescript('DROP TABLE pfaf; VACUUM;')"
+
+# then to the Pi, into its clone
+scp data/plants.export.sqlite plants.local:plants/data/plants.export.sqlite
+
+# and on the Pi, as usual
 cd plants && sudo ./install.sh
 ```
 
 The `scp` on its own is the whole update where you do not run the app locally,
-which is what [step 2](#2-install) shows.
+which is what [step 2](#2-install) shows — and it is 7.9 MB over the Pi's
+Wi-Fi rather than 40.3, which is the whole reason the export build exists as a
+step rather than as a footnote suggesting you could drop the table if you felt
+like it.
 
-It is ignored by git at both ends, so a `git pull` on the Pi leaves it alone
-and `git status` stays clean. A pull cannot undo the copy either: what it
+Both are ignored by git at both ends, so a `git pull` on the Pi leaves them
+alone and `git status` stays clean. A pull cannot undo the copy either: what it
 updates is the tracked `data/plants.sqlite`, which is a different file, and the
-installer takes the one you copied over it regardless.
-
-30 MB of the 34.5 is the `pfaf` table — the whole crawl, kept for provenance
-and never read by the app. If the transfer over the Pi's Wi-Fi ever gets
-tiresome, `DROP TABLE pfaf; VACUUM;` takes the copy to 4.6 MB and the app
-cannot tell the difference.
+installer takes whichever of the other two it finds regardless.
 
 ### What you can search by
 
 The name box is always out; everything else folds away behind a **Filters**
-button and starts shut. Nine controls in front of a list you came here to read
+button and starts shut. Ten controls in front of a list you came here to read
 is a page of form on a phone, and the name answers most searches on its own.
 The button carries a count of what is set — `Filters · 3` — and wears the
 accent while the panel is shut, because a filter you cannot see narrowing a
@@ -326,20 +356,22 @@ list you can is the one way an arrangement like this lies.
 | **name** | any title or binomial containing what you type; an exact name sorts first |
 | **survives to** | entries whose recorded minimum is at or below that temperature |
 | **height** | entries whose tallest recorded figure falls between the two, either end on its own |
+| **growth form** | one of pfaf's eleven words for what kind of plant it is |
 | **light** | direct sun, indirect light, partial sun, or shade |
 | **soil pH** | entries whose recorded range covers that figure |
-| **edible · medicinal · other uses** | mentioned by the article, or rated *n*/5 or better by pfaf |
+| **edible · medicinal · other uses** | mentioned by a source, or rated *n*/5 or better by pfaf |
 | **aquatic** | entries the article marks as such |
-| **only pfaf** | the 1,132 entries filled out from pfaf.org |
+| **only pfaf** | the 7,161 entries with a pfaf.org page behind them |
 
 The figures deliberately mean different things, because the data does.
 
-**Temperature** is asked as a floor: 1,649 entries record how cold a plant
+**Temperature** is asked as a floor: 5,746 entries record how cold a plant
 takes and **63** record how hot, so asking it as a range makes "survives 45 °C"
-match 1,596 of them — every plant whose ceiling nobody happened to write down.
+match 5,689 of them — every plant whose ceiling nobody happened to write down.
 That is a count of what the sources are missing, dressed up as an answer. pfaf
-widened that gap rather than closing it: hardiness is exactly the end a plant
-database states, and the other end still nobody does.
+keeps widening that gap rather than closing it: hardiness is exactly the end a
+plant database states, and the other end still nobody does. All 4,097 of the
+promoted plants that record a temperature at all record only a floor.
 
 **Height** is asked from both ends, and both ends bound the same figure: the
 tallest recorded, which is the top of the range where the article gave one and
@@ -347,34 +379,65 @@ the single figure otherwise ("growing to 2 m tall" is stored as a minimum with
 no maximum). Bounding one figure twice rather than comparing the two recorded
 ends is what keeps it explicable in a line, and it is also the right reading —
 a plant recorded at 1–3 m does reach 2 m, so it answers "at least 2 m". Nothing
-is missing here: 1,325 entries give a range, 1,354 a single figure, none a
-maximum alone. It is the best-covered figure in the catalogue at 2,679 entries
+is missing here: 901 entries give a range, 7,304 a single figure, none a
+maximum alone. It is the best-covered figure in the catalogue at 8,205 entries
 and the most evenly spread, from under 15 cm to over 30 m. That spread is why
-it gained a floor: a windowsill asks **what stays under 60 cm**, but 853
+it gained a floor: a windowsill asks **what stays under 60 cm**, but 2,141
 entries are over 5 m and a ceiling alone could never ask for those.
 
-**pH** is asked as a range, because 1,237 of the 1,278 entries that record one
+**Growth form** is the odd one out: every other control narrows a list, and
+this one is the only thing here you can *browse* by. It is pfaf's own
+vocabulary — annual, bamboo, biennial, bulb, climber, corm, fern, lichen,
+perennial, shrub, tree — lowercased upstream, because the case on a pfaf page
+is a template artifact rather than a distinction, and it covers 7,117 entries.
+Eleven words is few enough for a select and specific enough to be worth one:
+*shrub* is 1,547 entries and *tree* 1,424, which is a shortlist rather than a
+filter. The list is spelled out in `server.py` as well as in the page, so a
+value outside it is a 400 naming the eleven rather than a search that silently
+finds nothing.
+
+**Soil moisture**, **drought** and **weed potential** come from the same
+pfaf.org paragraph and are shown on an entry without being searchable. Moisture
+is pfaf's phrase kept whole — `dry`, `moist`, `wet` and the three pairings —
+because turning six words into a min/max pair would mean inventing an ordinal
+scale nobody measured. The other two are read three ways rather than two, which
+is why they are facts on the page and not marks beside *Edible*: a mark is only
+ever "somebody said so", but here **"Not recorded" means pfaf.org has no page
+for this plant, while "Not tolerant" and "No" mean it has one and it says
+otherwise.** 7,161 entries answer at all; 1,066 tolerate drought and 679 are
+flagged weedy.
+
+**pH** is asked as a range, because 7,264 of the 7,305 entries that record one
 record both ends — a share that went up with pfaf, whose soil bands always give
-two ends because that is what a band is. It is also the weakest filter here,
-and the page says so in its own hint: **851** of those 1,278 ranges are the
-single band 6.0–8.5, pfaf's "mildly acid to mildly alkaline" read off words
-rather than measured, so asking for pH 6.5 keeps 1,223 of them — 96%. Only the
+two ends because that is what a band is. It is the weakest filter here, and the
+page says so in its own hint: **6,021** of those 7,305 ranges are the single
+band 6.0–8.5, pfaf's "mildly acid to mildly alkaline" read off words rather
+than measured, so asking for pH 6.5 keeps 7,244 of them — 99%. Only the
 extremes bite: pH 5.0 leaves 74.
+
+The promotion is what made it weak. It took the column from 1,278 rows to
+**7,305** — better covered now than anything but height and light — and every
+one of the 6,027 rows it added carries a band rather than a number. Coverage
+and usefulness moved in opposite directions, which is the whole reason the hint
+exists: before, pH was a control that quietly threw away seven entries in
+eight; now it is one that quietly keeps them. Same failure, other face.
 
 **The three uses** are each asked one of two ways, because a flag and a rating
 are different populations making different claims.
 
-*Mentioned* is Wikipedia's, and it is yes-or-nothing rather than yes-or-no: set
-from what a source commits to, so a 0 means nobody wrote it down, which is why
-leaving the control at Any asks nothing at all rather than asking for the
-plants that are *not* edible. 1,507 entries are marked edible and 1,597 for
-some other use (medicine, oil, dye, fibre — not timber or "ornamental", which
-are true of most of the table and so separate none of it). At 30% of the
-catalogue, though, it barely narrows anything.
+*Mentioned* is yes-or-nothing rather than yes-or-no: set from what a source
+commits to — an article that brings the use up, or a pfaf.org page that rates
+it above 0 — so a 0 means nobody wrote it down, which is why leaving the
+control at Any asks nothing at all rather than asking for the plants that are
+*not* edible. 6,212 entries are marked edible and 5,060 for some other use
+(medicine, oil, dye, fibre — not timber or "ornamental", which are true of most
+of the table and so separate none of it). At 56% of the catalogue, though, it
+barely narrows anything, and the promotion made that worse rather than better:
+pfaf.org lists plants *because* somebody found a use for them.
 
-*Rated n/5 or better* is pfaf's, on the 1,132 entries it covers, and it is the
-sharp instrument: **447** entries rate 3/5 or better for food, **225** for
-medicine, **512** for some other use. A rating also has a real zero — somebody
+*Rated n/5 or better* is pfaf's, on the 7,161 entries it covers, and it is the
+sharp instrument: **1,937** entries rate 3/5 or better for food, **879** for
+medicine, **1,981** for some other use. A rating also has a real zero — somebody
 looked and found no use of that kind — which is why an entry prints its 0 where
 it drops an unset mark. A floor of 0 is not offered as a filter: every rated
 entry clears it, so it would be the same question as "rated at all" wearing a
@@ -385,15 +448,19 @@ medicinal flag, so the field arrived whole with the pfaf merge — and until the
 merge caught up with the filters, it was the one thing the catalogue knew and
 could not be asked about.
 
-Asking for a rating restricts you to those 1,132 rows, which is the trap the
+Asking for a rating restricts you to those 7,161 rows, which is the trap the
 temperature range would have been if the page said nothing. It does say
 something: a search that finds nothing prints why in the catalogue's own terms
-— *"Of the 5,065 entries, only 1,132 carry a pfaf.org rating"* — and on the
+— *"Of the 11,094 entries, only 7,161 carry a pfaf.org rating"* — and on the
 Wikipedia-only build, where the answer is none, it says none. **Only pfaf** is
 the same restriction asked for on purpose: those are the entries that state
 soil, shade and hardiness outright instead of having had them read out of
-prose, and it is the difference between a catalogue of 5,065 names and a
+prose, and it is the difference between a catalogue of 11,094 names and a
 shortlist somebody actually wrote the growing conditions down for.
+
+It is written as *not* `enwiki` rather than as a list of the other two, so a
+build that adds a fourth combination lands inside it by default rather than
+being dropped without anybody noticing.
 
 The marks still combine as they always did: edible **and** aquatic is 30 rows,
 and one of them is a water chestnut.
@@ -418,29 +485,42 @@ little the view says how much of the catalogue could have answered at all.
 
 ### Reading the results with the right suspicion
 
-This is a **seed**, not a care sheet. Of the 5,065 entries, 3,337 carry a
-figure of some kind, 2,098 carry at least one mark, 3,079 carry prose worth
+This is a **seed**, not a care sheet. Of the 11,094 entries, 9,366 carry a
+figure of some kind, 7,633 carry at least one mark, 4,966 carry prose worth
 keeping — and 1,010 carry none of the three and are names only.
+
+That last number did not move: it was 1,010 before the promotion too. All 6,029
+plants that came across from pfaf.org alone arrived with at least a height, a
+light or a growth form, so not one of them landed as a bare name. The names-only
+1,010 are all Wikipedia articles the extractor found nothing quotable in.
 
 Two labels on the entry page are there to be distrusted, and they are the same
 kind of thing twice: an honest number standing in for a coarser statement.
 
 **from a zone** means the minimum was read off a hardiness zone rather than a
-sentence somebody wrote. 1,323 entries have one and they dominate any cold
+sentence somebody wrote. 5,420 entries have one and they dominate any cold
 search — *Angelica glauca* comes out surviving −34.4 °C from zone 4–7 while its
 own prose says it is happy at 10–15 °C.
 
-**from soil bands** is the new one, and it is why the pH column filled up.
+**from soil bands** is why the pH column filled up at all.
 pfaf states soil as named bands rather than as numbers, so a pH there is the
 edges of whichever bands the page listed: 6.0–8.5 is "mildly acid, neutral and
-basic" and not a figure anyone put a meter in the ground for. 1,043 of the
-1,278 entries carrying a pH carry one of these. It is a useful thing to sort
+basic" and not a figure anyone put a meter in the ground for. 7,070 of the
+7,305 entries carrying a pH carry one of these. It is a useful thing to sort
 on and a poor thing to quote, and the tell is how few distinct values there
-are: **846 of the 1,043 read 6.0–8.5**, which is pfaf's way of saying it is not
-fussy. The 235 that are unlabelled are the ones an editor
-wrote out, and every entry below pH 5 is among them — rhododendron, kalmia,
-blueberry — because a vocabulary that bottoms out at *mildly acid* cannot
-produce a genuinely acid-loving plant.
+are: **six distinct pairs across all 7,070**, against 102 among the 235 an
+editor wrote out, and **6,016 of the 7,070 read 6.0–8.5**, which is pfaf's way
+of saying the plant is not fussy. Those 235 are also where the acid end of the
+scale lives: no band starts below 6.0, so every one of the 45 entries under
+pH 5 is a figure somebody wrote out — rhododendron, kalmia, blueberry —
+because a vocabulary that bottoms out at *mildly acid* cannot produce a
+genuinely acid-loving plant.
+
+The promotion filled this column rather than skipping it: 6,027 of the 6,029
+plants that came from pfaf.org alone carry a pH, all of them banded, which is
+the whole of the jump from 1,278 to 7,305. The 1,278 that were there before are
+exactly the entries with a Wikipedia article behind them, and they are still
+the only ones that can carry a pH nobody read off a word.
 
 The **Uses** paragraph is not always a recipe. 23 entries carry one with
 neither mark set, because what the source had to say was a warning — peace
@@ -743,16 +823,17 @@ git clone <this repo> plants && cd plants
 # on the machine that built the catalogue — only if you want pfaf's figures,
 # which do not travel in the repo. Into the clone, not into /var/lib, so that
 # install.sh still stages and restarts it properly.
-scp ../plants_db/plants.sqlite plants.local:plants/data/plants.full.sqlite
+scp data/plants.export.sqlite plants.local:plants/data/plants.export.sqlite
 
 # back on the Pi
 sudo ./install.sh
 ```
 
 Skip the middle command and you get the Wikipedia-only catalogue that came
-with the clone, which is a working one. It is the same `scp` every time the
-catalogue is rebuilt after this, and [two catalogues](#two-catalogues) is the
-section about why.
+with the clone, which is a working one — 5,065 entries rather than 11,094. It
+is the same `scp` every time the catalogue is rebuilt after this, and
+[three catalogues](#three-catalogues) is the section about why, including how
+`data/plants.export.sqlite` is made.
 
 That copies the app to `/opt/plants`, creates a system user, puts the data in
 `/var/lib/plants`, and enables the service. Override the defaults if you like:
@@ -764,11 +845,12 @@ APP_DIR=/opt/plants DATA_DIR=/var/lib/plants PORT=80 sudo -E ./install.sh
 Re-running it updates the app, refreshes the catalogue and restarts the
 service; it never touches your plant list.
 
-`install.sh` places the catalogue too, taking `data/plants.full.sqlite` where
-you have copied one across and `data/plants.sqlite` — which does travel in the
-repo — otherwise. So a pull and an install is still the whole update on a Pi
-that only wants the Wikipedia figures, and a pull, a `scp` and an install on
-one that wants pfaf's as well. See [two catalogues](#two-catalogues).
+`install.sh` places the catalogue too, taking `data/plants.export.sqlite` or
+`data/plants.full.sqlite` where you have copied one across and
+`data/plants.sqlite` — which does travel in the repo — otherwise. So a pull and
+an install is still the whole update on a Pi that only wants the Wikipedia
+figures, and a pull, a `scp` and an install on one that wants pfaf's as well.
+See [three catalogues](#three-catalogues).
 
 It is installed the way derived data can be and a plant list cannot: replaced
 wholesale, every run. **`plants.json` is never copied from the repo.** The list
@@ -783,14 +865,14 @@ rare enough to be baffling rather than obviously self-inflicted.
 
 The restart at the end of `install.sh` matters for the same reason a fresh
 search does not: searches open the file every time and pick up a replacement at
-once, but the coverage counts behind the *"of the 5,065 entries, 1,278 record a
-soil pH"* line are read once and kept for the life of the process.
+once, but the coverage counts behind the *"of the 11,094 entries, 7,305 record
+a soil pH"* line are read once and kept for the life of the process.
 
-Keeping a 4.4 MB binary in git costs a new copy in history every time the dump
-is re-mined; at a handful of rebuilds that is fine. The full build is out of
-the repo for a licensing reason rather than a size one, and the app did not
+Keeping a 4.6 MB binary in git costs a new copy in history every time the dump
+is re-mined; at a handful of rebuilds that is fine. The two full builds are out
+of the repo for a licensing reason rather than a size one, and the app did not
 notice either way — `--catalog` points anywhere, and the default is just a
-list of two names tried in order.
+list of three names tried in order.
 
 ### 3. Open it
 
@@ -1033,12 +1115,13 @@ python3 server.py --port 8080 --data ./data/plants.json
 
 then open <http://localhost:8080>. There is nothing to build.
 
-The catalogue is looked for next to the data file — `plants.full.sqlite`
-first, then `plants.sqlite` — so dropping either into `./data/` is all it
-takes; `--catalog` points elsewhere. Without one everything still runs and the
-catalogue view says it is not installed. The startup line tells you which you
-have, and a clone straight from git has the second:
+The catalogue is looked for next to the data file — `plants.export.sqlite`
+first, then `plants.full.sqlite`, then `plants.sqlite` — so dropping any of
+them into `./data/` is all it takes; `--catalog` points elsewhere. Without one
+everything still runs and the catalogue view says it is not installed. The
+startup line tells you which you have, and a clone straight from git has the
+last:
 
 ```
-plants: catalogue /home/…/data/plants.full.sqlite (ready)
+plants: catalogue /home/…/data/plants.export.sqlite (ready)
 ```

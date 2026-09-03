@@ -3,13 +3,14 @@
 /* =========================================================================
    The reference catalogue
 
-   5,065 species sitting in a SQLite file on the Pi: mined from the English
-   Wikipedia dump, and 1,132 of them filled out from pfaf.org, which states
-   soil, shade and hardiness outright where an encyclopedia had to be read for
-   them. It is searched there rather than held here: an encyclopedia has no
-   business in localStorage, and unlike your own plants this is reference data
-   you never edit, so there is nothing to sync and nothing to lose by needing
-   the Pi to read it.
+   11,094 species sitting in a SQLite file on the Pi: 5,065 mined from the
+   English Wikipedia dump, 1,132 of those filled out from pfaf.org, and 6,029
+   more that pfaf.org lists and Wikipedia has no article for at all. pfaf.org
+   states soil, shade and hardiness outright where an encyclopedia had to be
+   read for them. It is searched there rather than held here: an encyclopedia
+   has no business in localStorage, and unlike your own plants this is
+   reference data you never edit, so there is nothing to sync and nothing to
+   lose by needing the Pi to read it.
 
    Entries come back shaped exactly like a plant or a species — same four
    condition groups, same field names — so the formatting below is the code
@@ -37,6 +38,14 @@ const CATALOG_MARKS = { edible: 'Edible', otherUses: 'Other uses',
    "mentioned". */
 const CATALOG_USES = { edible: 'Edible', medicinal: 'Medicinal',
                        otherUses: 'Other uses' };
+
+/* pfaf.org words a growth form and a soil moisture in lower case, and
+   ../plants_db keeps them that way because the case on a pfaf page is a
+   template artifact rather than a distinction. Both open a fact on the entry
+   page, where they read as labels, so the capital goes back on here. The
+   eleven growth forms themselves are the `#cat-growthForm` options and the
+   `FORMS` tuple in server.py, which rejects anything outside them. */
+const sentenceCase = (text) => text ? text[0].toUpperCase() + text.slice(1) : '';
 
 const catalogMarks = (entry) =>
   Object.keys(CATALOG_MARKS).filter((name) => entry[name]).map((n) => CATALOG_MARKS[n]);
@@ -86,6 +95,11 @@ function fillRatings(node, entry) {
   return said.length > 0;
 }
 
+/* A tri-state field's word, or '' where the field was never sent — which is
+   what `fill` turns into its own "Not recorded". */
+const boolText = (value, yes, no) =>
+  typeof value === 'boolean' ? (value ? yes : no) : '';
+
 function catalogLightText(entry) {
   const kind = (entry.light && CATALOG_LIGHT[entry.light.kind]) || '';
   const hours = figure(entry, 'light', 'hours');
@@ -129,9 +143,9 @@ async function catalogRequest(suffix) {
    list is also what counts the ones that are set for the button, and what
    `catalogFilters` walks, so a control added here needs nothing else. */
 const CATALOG_FIELDS = {
-  temp: 'text', heightMin: 'text', heightMax: 'text', ph: 'text',
-  kind: 'select', edible: 'select', medicinal: 'select', otherUses: 'select',
-  aquatic: 'check', pfaf: 'check',
+  temp: 'text', heightMin: 'text', heightMax: 'text', growthForm: 'select',
+  kind: 'select', ph: 'text', edible: 'select', medicinal: 'select',
+  otherUses: 'select', aquatic: 'check', pfaf: 'check',
 };
 
 const catalogFilters = () => {
@@ -224,12 +238,13 @@ function noMatchReason(doc, filters) {
   note(filters.temp, cover.temp, 'record a temperature');
   note(filters.ph, cover.ph, 'record a soil pH');
   note(filters.heightMin || filters.heightMax, cover.height, 'record a height');
+  note(filters.growthForm, cover.form, 'record a growth form');
   note(filters.kind, cover.light, 'record the kind of light');
   note(filters.aquatic, cover.aquatic, 'are marked aquatic');
-  note(filters.pfaf, cover.pfaf, 'were filled out from pfaf.org');
+  note(filters.pfaf, cover.pfaf, 'have a pfaf.org page behind them');
 
   // Each of the three uses asks one of two questions. Asked as a rating they
-  // all draw on the same 1,132 entries, so the three would repeat each other
+  // all draw on the same 7,161 entries, so the three would repeat each other
   // word for word; the Set below is what keeps that to one sentence.
   for (const name of Object.keys(CATALOG_USES)) {
     const asked = filters[name];
@@ -356,8 +371,9 @@ async function renderCatalogEntry(pageId) {
   show('catalog-detail', 'Catalogue');
 
   const fields = ['#c-title', '#c-binomial', '#c-temp', '#c-humidity', '#c-ph',
-                  '#c-light', '#c-height', '#c-family', '#c-zone', '#c-flags',
-                  '#c-ratings', '#c-uses', '#c-notes', '#c-lead', '#c-meta'];
+                  '#c-moisture', '#c-light', '#c-height', '#c-form', '#c-family',
+                  '#c-zone', '#c-drought', '#c-weedy', '#c-flags', '#c-ratings',
+                  '#c-uses', '#c-notes', '#c-lead', '#c-meta'];
   for (const sel of fields) $(sel).textContent = '';
 
   $('#c-add').textContent = 'Add as a species';
@@ -381,7 +397,7 @@ async function renderCatalogEntry(pageId) {
 
   fill($('#c-temp'), tempText(entry), 'Not recorded');
   // A minimum read off a hardiness zone is a coarser figure than one an editor
-  // wrote in a sentence, and 1,323 of the entries have one.
+  // wrote in a sentence, and 5,420 of the entries have one.
   const zoned = $('#c-temp-from');
   zoned.hidden = !entry.fromZone;
   zoned.textContent = entry.fromZone ? 'from a zone' : '';
@@ -390,16 +406,32 @@ async function renderCatalogEntry(pageId) {
   const ph = phText(entry);
   fill($('#c-ph'), ph && 'pH ' + ph, 'Not recorded');
   // The same warning, for the same reason. pfaf.org states soil as named
-  // bands rather than numbers, so 1,043 of the 1,278 entries that carry a pH
+  // bands rather than numbers, so 7,070 of the 7,305 entries that carry a pH
   // carry the edges of a band somebody named — 6.0-8.5 is "mildly acid to
-  // mildly alkaline" and not a figure anyone measured.
+  // mildly alkaline" and not a figure anyone measured. There are six such
+  // pairs in the whole catalogue against 102 written out by hand, which is
+  // the shape of a vocabulary rather than of a measurement.
   const banded = $('#c-ph-from');
   banded.hidden = !entry.phFromBands;
   banded.textContent = entry.phFromBands ? 'from soil bands' : '';
+  // pfaf.org's word for the soil it wants, as it words it: `dry`, `moist`,
+  // `wet` and the three pairings of those. A closed set of six, and turning it
+  // into a pair of numbers would mean inventing a scale nobody measured.
+  fill($('#c-moisture'), sentenceCase(entry.moisture), 'Not recorded');
   fill($('#c-light'), catalogLightText(entry), 'Not recorded');
   fill($('#c-height'), heightText(entry), 'Not recorded');
+  fill($('#c-form'), sentenceCase(entry.growthForm), 'Not recorded');
   fill($('#c-family'), entry.family, 'Not recorded');
   fill($('#c-zone'), entry.zone && 'Zone ' + entry.zone, 'Not recorded');
+
+  // The two three-state ones, and the third state is why they are facts here
+  // rather than pills beside the marks. A mark is only ever "somebody said
+  // so"; these can also say "somebody looked and did not" — the server sends
+  // `false` for that and sends nothing at all where no pfaf.org page exists,
+  // so an absent field falls through to "Not recorded" like every fact above.
+  fill($('#c-drought'), boolText(entry.droughtTolerant, 'Tolerant', 'Not tolerant'),
+       'Not recorded');
+  fill($('#c-weedy'), boolText(entry.weedy, 'Yes', 'No'), 'Not recorded');
 
   // The paragraph is not always a recipe: 23 entries carry one with neither
   // flag set, because what the article had to say was a warning. Those are

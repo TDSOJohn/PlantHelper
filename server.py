@@ -12,8 +12,8 @@ Serves the static page, one JSON endpoint and the plant photos:
     PUT    /api/photo/<id>    <-  raw JPEG bytes (the browser resizes to 512x512)
     DELETE /api/photo/<id>
     GET    /photos/<id>.jpg
-    GET    /api/catalog?q=&temp=&ph=&heightMin=&heightMax=&kind=&aquatic=&pfaf=
-                        &edible=&medicinal=&otherUses=
+    GET    /api/catalog?q=&temp=&ph=&heightMin=&heightMax=&kind=&growthForm=
+                        &aquatic=&pfaf=&edible=&medicinal=&otherUses=
                               ->  the reference catalogue
     GET    /api/catalog/<pageId>            ->  one entry in full
 
@@ -43,7 +43,10 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 API_PATH = "/api/plants"
 PHOTO_API = re.compile(r"^/api/photo/([A-Za-z0-9_-]{1,64})$")
 PHOTO_FILE = re.compile(r"^/photos/([A-Za-z0-9_-]{1,64})\.jpg$")
-CATALOG_API = re.compile(r"^/api/catalog(?:/([0-9]{1,12}))?$")
+# The id is Wikipedia's page id, and the 6,029 plants it has no article for
+# carry a negative one instead — see `Catalog` below. A minus sign is part of
+# the key, so the route has to accept it or those entries cannot be opened.
+CATALOG_API = re.compile(r"^/api/catalog(?:/(-?[0-9]{1,12}))?$")
 
 # What a plant id has to look like before it is turned into a file name. The
 # two routes above get this from their own patterns; the sweep below needs it
@@ -57,12 +60,15 @@ BACKUP_KEEP = 30                  # daily snapshots to retain
 HIDDEN = ("/data", "/backups")    # never served as static files
 CATALOG_LIMIT = 60                # rows one search may return
 
-# Two builds of the catalogue, looked for in this order. The full one is mined
-# from Wikipedia *and* pfaf.org and cannot be redistributed, so it is not in the
-# repo; the Wikipedia-only one is, and is what a fresh clone falls back to. See
-# "Two catalogues" in the README. They carry the same columns, so everything
-# below reads whichever it is given without knowing which it got.
-CATALOG_NAMES = ("plants.full.sqlite", "plants.sqlite")
+# Three builds of the catalogue, looked for in this order. Two are mined from
+# Wikipedia *and* pfaf.org and cannot be redistributed, so neither is in the
+# repo: plants.export.sqlite is the one that gets deployed, and
+# plants.full.sqlite is the same catalogue with the raw pfaf.org crawl still
+# in it, which nothing here reads. The Wikipedia-only build is in the repo and
+# is what a fresh clone falls back to. See "Three catalogues" in the README.
+# All three carry the same columns, so everything below reads whichever it is
+# given without knowing which it got.
+CATALOG_NAMES = ("plants.export.sqlite", "plants.full.sqlite", "plants.sqlite")
 
 _lock = threading.Lock()
 
@@ -222,12 +228,19 @@ def like_escape(text):
 
 
 class Catalog:
-    """The reference catalogue: 5,065 species built by ../plants_db.
+    """The reference catalogue: 11,094 species built by ../plants_db.
 
-    Two sources behind those rows. Every one of them comes from the English
-    Wikipedia dump; 1,132 have then been filled out from pfaf.org, which states
-    soil, shade and hardiness outright where an encyclopedia had to be mined
-    for them. `source` says which, per row.
+    Two sources behind those rows, in three combinations that `source` names
+    per row. 3,933 are an English Wikipedia article and nothing else. 1,132 are
+    an article filled out from pfaf.org, which states soil, shade and hardiness
+    outright where an encyclopedia had to be mined for them. The remaining
+    6,029 are pfaf.org plants Wikipedia has no article for at all.
+
+    Those last carry a *negative* `page_id`. The column is Wikipedia's page id
+    and they have none, so ../plants_db hands them a key that obviously is not
+    one rather than inventing a number a future dump could collide with. It is
+    a valid key everywhere here — `CATALOG_API` accepts the minus sign — and
+    the only thing it forbids is a link to Wikipedia, which the page handles.
 
     Read-only, and deliberately not part of plants.json. It is the opposite
     kind of data: nobody edits it, it is rebuilt from scratch whenever the
@@ -246,7 +259,7 @@ class Catalog:
     was read from, which is provenance for the extractor rather than anything
     to show.
 
-    Both builds carry the same columns, including the five pfaf.org added.
+    Every build carries the same columns, including the nine pfaf.org added.
     The Wikipedia-only one leaves them empty rather than omitting them, so
     there is one shape to read here and no build to special-case.
     """
@@ -255,22 +268,29 @@ class Catalog:
     # data has three.
     #
     # BANDS: the recorded range has to cover the figure, with an unrecorded end
-    # treated as open. Right for pH, where 1,237 of the 1,278 entries that
-    # record one record both ends — though see the warning in the page's own
-    # hint: 851 of those ranges are the single band 6.0–8.5, so a pH question
-    # keeps 96% of what records a pH at all and is the weakest filter here.
+    # treated as open. Right for pH, where 7,264 of the 7,305 entries that
+    # record one record both ends — pfaf.org's soil bands always give two,
+    # because two ends is what a band is. That is also the warning in the
+    # page's own hint: 6,021 of those ranges are the single band 6.0–8.5, so
+    # asking for pH 6.5 keeps 7,244 of the 7,305 and a pH question throws away
+    # almost nothing it can see. It is the widest filter here and the least
+    # informative, and the two go together: the promotion took the column from
+    # 1,278 rows to 7,305 by reading words off pages, and words are not
+    # measurements. Only the extremes still bite — pH 5.0 leaves 74.
     #
     # AT_MOST / AT_LEAST: one recorded figure has to be at or below — or at or
     # above — the number typed.
     #
     #   temp       the coldest it is known to take. A floor rather than a band
-    #              because 1,649 entries say how cold a plant goes and 63 how
-    #              hot: asked as a band, "survives 45 °C" matches 1,596 of
+    #              because 5,746 entries say how cold a plant goes and 63 how
+    #              hot: asked as a band, "survives 45 °C" matches 5,689 of
     #              them — every plant whose ceiling simply nobody wrote down.
     #              That is a count of what the sources are missing, dressed up
-    #              as an answer. The gap got wider with pfaf.org, not narrower:
-    #              hardiness is the one end a plant database states and the
-    #              other end still nobody does.
+    #              as an answer. The gap keeps widening with pfaf.org rather
+    #              than closing: hardiness is the one end a plant database
+    #              states, and the other end still nobody does. Every one of
+    #              the 6,029 plants promoted from pfaf.org alone arrived with
+    #              a floor and no ceiling.
     #   heightMin  both ends of the height question, and both bound the same
     #   heightMax  figure: the tallest it is known to get, which is the maximum
     #              where a range was given and the single figure otherwise
@@ -280,9 +300,9 @@ class Catalog:
     #              explicable in a line — and it is the right reading: a plant
     #              recorded at 1–3 m does reach 2 m, so it answers "at least
     #              2 m". Height is the best-covered figure in the catalogue
-    #              (2,679 entries) and the most evenly spread, from under 15 cm
+    #              (8,205 entries) and the most evenly spread, from under 15 cm
     #              to over 30 m, which is why it is worth asking from both
-    #              ends: 853 entries are over 5 m, and "no taller than" alone
+    #              ends: 2,141 entries are over 5 m, and "no taller than" alone
     #              could never ask for those.
     BANDS = {
         "ph": ("ph_min", "ph_max"),
@@ -308,21 +328,30 @@ class Catalog:
 
     # The three kinds of usefulness, each asked about in one of two ways.
     #
-    # A flag and a rating are different populations and different claims. The
-    # flag is Wikipedia's: 1,507 articles mention eating the plant, which is
-    # 30% of the catalogue and so barely narrows anything. The rating is
-    # pfaf.org's 0-5, on the 1,132 entries it covers, and it is the sharp
-    # instrument — 447 entries rate 3/5 or better for food, 225 for medicine.
+    # A flag and a rating are different claims. The flag is only that somebody
+    # brought the use up — an article that mentions eating the plant, or a
+    # pfaf.org page that rates it above 0 — and 6,212 entries carry the edible
+    # one, which is 56% of the catalogue and so barely narrows anything. The
+    # rating is pfaf.org's 0-5 on the 7,161 entries it covers, and it is the
+    # sharp instrument: 1,937 rate 3/5 or better for food, 879 for medicine.
     #
     # So one control per kind, offering "mentioned" (the flag) or a floor on
     # the rating. Medicinal has no flag to offer because Wikipedia was never
-    # mined for one; it arrived whole with the pfaf.org merge, and until now
-    # nothing could search it.
+    # mined for one and a rating says it better anyway.
     USES = {
         "edible": ("edible", "rating_edible"),
         "medicinal": (None, "rating_medicinal"),
         "otherUses": ("other_uses", "rating_other_use"),
     }
+
+    # pfaf.org's own vocabulary for what kind of plant it is, lowercased by
+    # ../plants_db because the case on the page is a template artifact. Eleven
+    # words covering 7,117 entries, and the one axis this catalogue is worth
+    # browsing along rather than searching: "show me the shrubs" is a question
+    # nothing else here can ask. Spelled out rather than read from the file so
+    # that a bad value is a 400 with the list in it, the way `kind` already is.
+    FORMS = ("annual", "bamboo", "biennial", "bulb", "climber", "corm", "fern",
+             "lichen", "perennial", "shrub", "tree")
 
     @classmethod
     def figures(cls):
@@ -404,16 +433,29 @@ class Catalog:
             # The two figures that were derived rather than read. Both are
             # honest numbers standing in for a coarser statement, and both are
             # worth distrusting on sight: a minimum read off a hardiness zone
-            # (1,323 rows) and a pH read off pfaf.org's soil bands (1,043).
+            # (5,420 rows) and a pH read off pfaf.org's soil bands (7,070).
             out["fromZone"] = bool(row["temp_abs_min_from_zone"])
             out["phFromBands"] = bool(row["ph_from_bands"])
+            # What kind of plant it is and what soil it wants, in pfaf.org's
+            # own words. Absent where it has no page, like every group above.
+            out["growthForm"] = row["growth_form"] or ""
+            out["moisture"] = row["moisture"] or ""
+            # Three-state, and the third state is the point: NULL is no
+            # pfaf.org page, 0 is a page that claimed nothing of the kind, 1
+            # is a page that did. Sent as a bool where it is known and left
+            # out entirely where it is not, so the page can tell "no" from
+            # "nobody looked" — which the marks above cannot.
+            for name, column in (("droughtTolerant", "drought_tolerant"),
+                                 ("weedy", "weed_potential")):
+                if row[column] is not None:
+                    out[name] = bool(row[column])
             out["notes"] = row["notes"] or ""
             out["lead"] = row["lead"] or ""
             # What the flags are about, in the article's words. Search results
             # get the flags but not this: it is a paragraph, times sixty rows.
             out["uses"] = row["uses"] or ""
             # pfaf.org rates every plant it lists 0-5 for each of three kinds
-            # of usefulness, on 1,132 rows. Unlike the marks a 0 here is a
+            # of usefulness, on 7,161 rows. Unlike the marks a 0 here is a
             # real answer — somebody looked and found no use — so these are
             # sent whenever they were recorded, zeroes included, and left out
             # entirely where nobody rated the plant at all.
@@ -437,7 +479,7 @@ class Catalog:
         for name, (low, high) in self.BANDS.items():
             if name not in terms:
                 continue
-            # One end has to be recorded, or the 4,830 rows with no pH at all
+            # One end has to be recorded, or the 3,789 rows with no pH at all
             # would answer every pH question. The other end may be missing:
             # a range known only to start at 4.0 still says something about 6.5.
             where.append("(({low} IS NOT NULL OR {high} IS NOT NULL)"
@@ -473,15 +515,24 @@ class Catalog:
             where.append("light_kind = ?")
             args.append(terms["kind"])
 
-        # The 1,132 entries pfaf.org filled out: the ones that state soil,
-        # shade and hardiness outright instead of having had them read out of
-        # prose, and the only ones carrying a rating. Worth asking for on its
-        # own — it is the difference between a catalogue of 5,065 names and a
-        # shortlist of plants somebody actually wrote the growing conditions
-        # down for. Empty on the Wikipedia-only build, which matches nothing,
-        # and the page says so rather than looking broken.
+        if terms.get("growthForm"):
+            where.append("growth_form = ?")
+            args.append(terms["growthForm"])
+
+        # The 7,161 entries with a pfaf.org page behind them, whether or not
+        # Wikipedia also has an article: the ones that state soil, shade and
+        # hardiness outright instead of having had them read out of prose, and
+        # the only ones carrying a rating. Worth asking for on its own — it is
+        # the difference between a catalogue of 11,094 names and a shortlist of
+        # plants somebody actually wrote the growing conditions down for.
+        #
+        # Written as the complement of `enwiki` rather than as a list of the
+        # other two, so a build that adds a third combination is included by
+        # default rather than silently dropped. On the Wikipedia-only build
+        # every row is stamped `enwiki`, so this matches nothing — which is
+        # the truth there, and the page says so rather than looking broken.
         if terms.get("pfaf"):
-            where.append("source = 'enwiki+pfaf'")
+            where.append("source <> 'enwiki'")
 
         clause = (" WHERE " + " AND ".join(where)) if where else ""
         order, order_args = "score DESC, title", []
@@ -543,9 +594,12 @@ class Catalog:
                 "light": count("light_kind IS NOT NULL"),
                 "height": count("height_min_cm IS NOT NULL"),
                 "notes": count("notes IS NOT NULL AND notes != ''"),
-                # The pfaf.org half of the merge, and the ceiling on every
-                # rating question: nothing outside these rows carries one.
-                "pfaf": count("source = 'enwiki+pfaf'"),
+                # Every row with a pfaf.org page behind it, and the ceiling
+                # on every rating question: nothing outside these carries one.
+                "pfaf": count("source <> 'enwiki'"),
+                # The browsing axis, and the only filter below whose own
+                # coverage is worth quoting back at an empty result.
+                "form": count("growth_form IS NOT NULL"),
             }
             for name, column in self.FLAGS.items():
                 self._coverage[name] = count(column + " = 1")
@@ -561,12 +615,15 @@ class Catalog:
 
 
 def pick_catalog(folder):
-    """Which of the two builds to serve, given a folder.
+    """Which of the three builds to serve, given a folder.
 
-    The full one wins where it is there. Falling back rather than failing is
-    the point: the repo carries only the Wikipedia-only build, so a fresh clone
-    that has never copied a catalogue across still gets a working one, and the
-    last name in the list is what the startup line reports as missing.
+    The first one there wins, and the order puts the deployable build ahead of
+    the one carrying the crawl: they hold the same catalogue, so serving the
+    8 MB file rather than the 40 MB one costs nothing and is what the Pi has.
+    Falling back rather than failing is the point: the repo carries only the
+    Wikipedia-only build, so a fresh clone that has never copied a catalogue
+    across still gets a working one, and the last name in the list is what the
+    startup line reports as missing.
     """
     for name in CATALOG_NAMES:
         path = os.path.join(folder, name)
@@ -601,6 +658,13 @@ def catalog_terms(query):
         if value != value or value in (float("inf"), float("-inf")):
             return None, "'%s' is not a number" % name
         terms[name] = value
+
+    form = first("growthForm")
+    if form:
+        if form not in Catalog.FORMS:
+            return None, ("'growthForm' must be one of: "
+                          + ", ".join(Catalog.FORMS))
+        terms["growthForm"] = form
 
     kind = first("kind")
     if kind:
@@ -887,7 +951,7 @@ def main():
                         help="path to plants.json (default: <web>/data/plants.json)")
     parser.add_argument("--catalog", default=None,
                         help="path to the catalogue (default: the first of "
-                             + " or ".join(CATALOG_NAMES) + " alongside plants.json)")
+                             + ", ".join(CATALOG_NAMES) + " alongside plants.json)")
     args = parser.parse_args()
 
     data = args.data or os.path.join(args.web, "data", "plants.json")
