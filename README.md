@@ -40,11 +40,14 @@ standard-library server. Nothing to install on the Pi beyond what Raspberry Pi
 OS already ships.
 
 ```
-index.html  styles.css  app.js  icon*      the page
-server.py                                  static files, /api/plants, photos
-plants.service  install.sh                 run it under systemd
-data/plants.sqlite                         the reference catalogue
-data/plants.full.sqlite                    the same, with pfaf.org — not in git
+index.html  styles.css  icon*   the page
+core.js  sync.js  wiring.js     state and model, server sync, boot
+views.js  species.js  seeds.js  the screens
+catalog.js                      the reference catalogue screens
+server.py                       static files, /api/plants, photos
+plants.service  install.sh      run it under systemd
+data/plants.sqlite              the reference catalogue
+data/plants.full.sqlite         the same, with pfaf.org — not in git
 ```
 
 ## Name and species

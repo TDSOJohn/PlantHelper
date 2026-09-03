@@ -191,7 +191,7 @@
         </div>
         <p id="f-hum-error" class="hint error" hidden></p>
         <!-- Text, not number: iOS offers a comma on the decimal keypad, and a
-             number field reads back as empty when one is typed. app.js parses
+             number field reads back as empty when one is typed. views.js parses
              both separators and clamps to the 0-14 scale. -->
         <div class="inline">
           <span>Soil pH</span>
@@ -840,6 +840,12 @@
   </a>
 </nav>
 
-<script src="app.js"></script>
+<script src="core.js"></script>
+<script src="sync.js"></script>
+<script src="views.js"></script>
+<script src="species.js"></script>
+<script src="catalog.js"></script>
+<script src="seeds.js"></script>
+<script src="wiring.js"></script>
 </body>
 </html>
