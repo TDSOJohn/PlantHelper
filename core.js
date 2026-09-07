@@ -231,14 +231,59 @@ function addedKey(plant) {
 }
 
 /**
+ * The sowing a plant was potted up from, or null.
+ *
+ * Tombstones included, deliberately. Deleting a sowing should stop it gathering
+ * its plants into a row on the list; it should not quietly move their watering
+ * days, which is what losing the date below would do.
+ */
+const sowingOf = (plant) =>
+  (plant && plant.sowingId && sowings.find((s) => s.id === plant.sowingId)) || null;
+
+/**
+ * Where an interval starts for a plant that came out of a sowing, or ''.
+ *
+ * A tray is sown on one day and potted up a seedling at a time over the
+ * following fortnight, and nobody records which day a particular seedling was
+ * moved — they are watered together, in one go. So the clock starts at the
+ * sowing rather than at the potting, and every cycle that came round before
+ * the potting is skipped: sown the 1st, every 3 days, potted the 8th, first
+ * watering the 10th. A sibling potted the 9th lands on the 10th as well, which
+ * is the whole point — the group is aligned from the start whatever day each
+ * one happened to be moved.
+ *
+ * A boundary falling on the potting day itself is skipped along with the rest,
+ * because you have just watered the thing in. That is the rule a new plant
+ * already follows: the clock starts today and the first watering is N days off.
+ */
+function sowingStart(plant, days) {
+  const n = Number(days) || 0;
+  const sowing = sowingOf(plant);
+  const sown = sowing && sowing.sownOn;
+  if (!sown || n < 1) return '';
+  const potted = addedKey(plant);
+  const gap = daysBetween(sown, potted);
+  // Potted before it was sown is not a thing that happens; a clock edited
+  // backwards or two phones disagreeing about a date is.
+  return gap < n ? sown : addDays(sown, n * Math.floor(gap / n));
+}
+
+/**
  * The schedule a plant actually runs on.
  *
  * A species supplies the shape — every 7 days, or Mondays and Fridays — but
  * never the anchor: when the clock started is a fact about your plant, not
  * about the kind of plant it is. An inherited interval therefore counts from
- * the last watering, falling back to the day the plant was added, so linking
- * an old plant to a weekly species puts it straight on today's list rather
- * than pretending it was watered just now.
+ * the last watering, falling back to the rhythm of the sowing it came out of
+ * and then to the day the plant was added, so linking an old plant to a weekly
+ * species puts it straight on today's list rather than pretending it was
+ * watered just now.
+ *
+ * All three are worked out on the way past rather than stored. A seedling
+ * potted last month is on its sowing's rhythm without anything being written
+ * to it, a species whose interval changes takes its plants with it, and the
+ * moment a plant is watered or given a schedule of its own the sowing stops
+ * having anything to say about it.
  */
 function effectiveSchedule(plant) {
   const found = inherited(plant, 'schedule');
@@ -247,7 +292,7 @@ function effectiveSchedule(plant) {
   return {
     type: 'interval',
     days: shape.days,
-    start: plant.lastWatered || addedKey(plant)
+    start: plant.lastWatered || sowingStart(plant, shape.days) || addedKey(plant)
   };
 }
 

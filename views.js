@@ -178,6 +178,192 @@ function drawPager(node, pages, page, go) {
   step('Next ›', page + 1, page < pages - 1);
 }
 
+/* =========================================================================
+   Sowing groups
+
+   Four seedlings potted up out of one tray are four plants, and every list
+   here treated them as four — four rows to scroll past on All plants, four
+   ticks to tap on Today. They are not four errands. They went into one tray on
+   one day, they come out of it a seedling at a time over a fortnight, and they
+   are watered together in one go; `sowingStart` in core.js is what puts them
+   on the same day whatever day each was potted.
+
+   So a sowing with two or more plants still standing draws one row, opening in
+   place to the plants inside it. Two is the threshold rather than one: a single
+   potted seedling is a plant, and hiding it behind a disclosure that says
+   "1 plant" is a row and a tap in exchange for nothing.
+
+   Nothing is stored for any of this. A group is what you get when you look at
+   the plants and notice that some of them share a `sowingId`, which is the
+   same thing that was already true before anything drew it.
+   ========================================================================= */
+
+/* Which groups are open, by sowing id. Kept while the app is running so that
+   opening a plant and coming back finds the group as you left it, and
+   forgotten on reload like the page you were on. */
+const openGroups = new Set();
+
+/** The plant in a group that most wants water: the latest, then the soonest due. */
+function leadPlant(members, today) {
+  return members.slice().sort((a, b) => {
+    const late = waterStatus(b, today).late - waterStatus(a, today).late;
+    if (late !== 0) return late;
+    const next = String(nextDueKey(a, today)).localeCompare(String(nextDueKey(b, today)));
+    return next !== 0 ? next : byName(a, b);
+  })[0];
+}
+
+/**
+ * `plants` as a list of rows to draw: a group where two or more came out of
+ * one sowing, a plain plant everywhere else.
+ *
+ * Every item carries a `name`, so the ordinary `byName` sorts groups and loose
+ * plants together without knowing which is which — a group sorts under the
+ * sowing's name, which is the species name it was sown as.
+ *
+ * `pool` is where a group's membership comes from, and `plants` is what the
+ * list is showing. On All plants they are the same thing. On today's list they
+ * are not: what is on that list is the plants that want water, but a tray is
+ * watered as a tray — so a sowing with one plant due brings the rest of its
+ * tray into the row with it, and the ✓ waters the lot. Anything else and a
+ * tray potted up over three days never comes back into step: you would water
+ * three of it today and the fourth tomorrow, for ever.
+ */
+function groupItems(plants, today, pool) {
+  const bySowing = new Map();
+  for (const plant of pool || plants) {
+    if (!plant.sowingId) continue;
+    const seen = bySowing.get(plant.sowingId) || [];
+    seen.push(plant);
+    bySowing.set(plant.sowingId, seen);
+  }
+
+  const items = [];
+  const drawn = new Set();
+  for (const plant of plants) {
+    const members = plant.sowingId ? bySowing.get(plant.sowingId) : null;
+    if (!members || members.length < 2) {
+      items.push({ name: plant.name, plant: plant });
+      continue;
+    }
+    if (drawn.has(plant.sowingId)) continue;   // the group is drawn once, at its first plant
+    drawn.add(plant.sowingId);
+    const sowing = sowingOf(plant);
+    items.push({
+      name: sowing ? sowingName(sowing) : plant.name,
+      sowing: sowing,
+      id: plant.sowingId,
+      members: members,
+      lead: leadPlant(members, today)
+    });
+  }
+  return items;
+}
+
+/** How late an item is, for sorting today's list: a group is its worst plant. */
+const itemLate = (item, today) =>
+  waterStatus(item.lead || item.plant, today).late;
+
+/**
+ * One group: a disclosure that opens to the plants inside it.
+ *
+ * A button rather than a link, because it goes nowhere — the same shape as the
+ * catalogue's Filters, and the reason `aria-expanded` is on it. What it says is
+ * what its most urgent plant says, so a group reads exactly like the row it
+ * replaces; the ✓ beside it, on today's list, waters the lot.
+ */
+function groupRow(item, today, withTick) {
+  const li = document.createElement('li');
+  li.className = 'grouped';
+  const open = openGroups.has(item.id);
+
+  const head = document.createElement('button');
+  head.type = 'button';
+  head.className = 'group';
+  head.setAttribute('aria-expanded', open ? 'true' : 'false');
+
+  const mark = document.createElement('span');
+  mark.className = 'twist';
+  mark.textContent = open ? '▾' : '▸';
+  head.appendChild(mark);
+
+  const text = document.createElement('div');
+  text.className = 'text';
+
+  const name = document.createElement('div');
+  name.className = 'name';
+  name.textContent = item.name;
+  text.appendChild(name);
+
+  // The place and the schedule are only worth saying where the whole group
+  // agrees on them: half a tray on the balcony is a fact about two plants
+  // rather than about the sowing, and one seedling put on a month's interval
+  // of its own would otherwise have the row announce a month for all four.
+  // What the row cannot say for everybody it leaves to the plants inside it.
+  const agreed = (say) => {
+    const said = new Set(item.members.map(say));
+    return said.size === 1 ? [...said][0] : '';
+  };
+  const place = agreed(placeText);
+  const count = item.members.length + ' plants';
+  // The status is the lead's rather than the group's agreement, because that
+  // one is not a disagreement to hide: the row has to say the worst of them,
+  // or a tray with one plant two days late looks like a tray with nothing to
+  // do until Thursday.
+  const rest = withTick ? statusText(item.lead, today)
+                        : [agreed(scheduleText), statusText(item.lead, today)]
+                            .filter(Boolean).join(' · ');
+
+  const sub = document.createElement('div');
+  sub.className = 'sub' + (itemLate(item, today) > 0 ? ' late' : '');
+  sub.textContent = [place, count, rest].filter(Boolean).join(' · ');
+  text.appendChild(sub);
+
+  head.appendChild(text);
+  li.appendChild(head);
+
+  if (withTick) {
+    const tick = document.createElement('button');
+    tick.type = 'button';
+    tick.className = 'tick';
+    tick.textContent = '✓';
+    tick.setAttribute('aria-label', 'Mark all ' + count + ' of ' + item.name + ' as watered');
+    tick.onclick = () => markWateredAll(item.members.map((p) => p.id));
+    li.appendChild(tick);
+  }
+
+  const nested = document.createElement('ul');
+  nested.className = 'list nested';
+  nested.hidden = !open;
+  // The plants inside are ordinary rows, ticks and all: a group is a way of
+  // folding the list up, not a different kind of thing to water.
+  for (const plant of item.members.slice().sort(byName)) {
+    nested.appendChild(plantRow(plant, today, withTick));
+  }
+  li.appendChild(nested);
+
+  // Opened and shut in place rather than by re-rendering the list, which is
+  // what the catalogue's Filters button does and for the same reason: every
+  // render puts the page back to the top, and a group opened halfway down a
+  // long list would take your place in it with it. Nothing about the row is
+  // out of date afterwards — the plants inside were drawn either way, and all
+  // that changed is whether they are being shown.
+  head.onclick = () => {
+    const opening = !openGroups.has(item.id);
+    if (opening) openGroups.add(item.id);
+    else openGroups.delete(item.id);
+    nested.hidden = !opening;
+    mark.textContent = opening ? '▾' : '▸';
+    head.setAttribute('aria-expanded', opening ? 'true' : 'false');
+  };
+
+  return li;
+}
+
+/** One item of a list, whichever kind it turned out to be. */
+const listRow = (item, today, withTick) =>
+  item.plant ? plantRow(item.plant, today, withTick) : groupRow(item, today, withTick);
+
 /**
  * One row: a link to the plant, plus (on today's list) a button to tick it off
  * without opening it.
@@ -239,9 +425,19 @@ function renderToday() {
   const due = dueToday(today);
   const seeds = seedsDue(today);
 
+  // Grouped after `dueToday` rather than instead of it, so the list is still
+  // built out of the plants that want water — but a sowing on it arrives whole,
+  // because a tray is watered as a tray and its ✓ has to be able to say so.
+  // The order `dueToday` sorted them into is kept: most overdue first, and a
+  // group is as late as its worst.
+  const items = groupItems(due, today, all).sort((a, b) => {
+    const late = itemLate(b, today) - itemLate(a, today);
+    return late !== 0 ? late : byName(a, b);
+  });
+
   const ul = $('#today-list');
   ul.textContent = '';
-  for (const p of due) ul.appendChild(plantRow(p, today, true));
+  for (const item of items) ul.appendChild(listRow(item, today, true));
 
   // Seeds whose germination window has arrived: a separate group, because
   // "go and look whether anything is through" is a different errand from
@@ -273,22 +469,27 @@ let plantsPage = 0;
 
 function renderAll() {
   const today = todayKey();
-  const items = live().sort(byName);
+  const plants = live().sort(byName);
+  // What is paged is rows rather than plants: a sowing of four is one of the
+  // twenty, open or shut. Opening one makes a page longer, which is what
+  // opening something is for.
+  const items = groupItems(plants, today).sort(byName);
   const pages = pageCount(items.length);
   plantsPage = clampPage(plantsPage, pages);
 
   const ul = $('#plant-list');
   ul.textContent = '';
-  for (const p of pageOf(items, plantsPage)) ul.appendChild(plantRow(p, today, false));
+  for (const item of pageOf(items, plantsPage)) ul.appendChild(listRow(item, today, false));
 
   drawPager($('#plant-pager'), pages, plantsPage, (n) => {
     plantsPage = n;
     renderAll();          // `show` inside it puts the new page at the top
   });
 
-  // The count is the whole list, not the page: it answers "how many plants do
-  // I have", which is not a question about where you are standing in them.
-  show('all', `All plants (${items.length})`);
+  // The count is the whole list, not the page, and it counts plants rather
+  // than rows: it answers "how many plants do I have", which is not a question
+  // about where you are standing in them or about how they are folded up.
+  show('all', `All plants (${plants.length})`);
 }
 
 /* ---------- detail ---------- */

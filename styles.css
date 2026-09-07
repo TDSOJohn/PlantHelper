@@ -225,6 +225,47 @@ main {
 }
 .list .sub.late { color: var(--danger); font-weight: 600; }
 
+/* A sowing group: the same card as a row, as a button, because it opens in
+   place rather than going anywhere. The li has to wrap so that the plants
+   inside it land underneath rather than beside — the row itself is a flex line
+   holding the card and, on today's list, the ✓ beside it. */
+.list li.grouped { flex-wrap: wrap; }
+
+.list .group {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.list .group:active { border-color: var(--accent); }
+
+/* The triangle carries the open-or-shut on its own, so it is sized like the
+   text rather than like an icon and dimmed to stay out of the name's way. */
+.list .twist {
+  flex: none;
+  width: 12px;
+  color: var(--ink-dim);
+  font-size: 12px;
+}
+
+/* The plants inside, once it is open. Full width so it wraps under the row,
+   and indented to the depth of the triangle plus its gap, which lines the
+   names up under the group's own. */
+.list .nested {
+  flex-basis: 100%;
+  margin: 8px 0 0;
+  padding-left: 24px;
+}
+
 /* tick-it-off button on today's list */
 .tick {
   flex: none;

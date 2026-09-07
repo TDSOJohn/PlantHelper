@@ -240,10 +240,30 @@ async function removePhoto(id) {
 }
 
 function markWatered(id) {
-  const p = plants.find((x) => x.id === id && !x.deletedAt);
-  if (!p) return;
-  p.lastWatered = todayKey();
-  p.updatedAt = new Date().toISOString();
-  commit();
+  markWateredAll([id]);
+}
+
+/**
+ * Tick off several plants at once — what the ✓ on a sowing group does.
+ *
+ * One `commit`, not one per plant: commit writes localStorage and starts a
+ * sync, and four of those for one tap on one watering can is three too many.
+ * The same instant goes on every one of them, which is also what makes them
+ * carry on falling due together afterwards.
+ */
+function markWateredAll(ids) {
+  const today = todayKey();
+  const now = new Date().toISOString();
+  let touched = false;
+
+  for (const id of ids) {
+    const p = plants.find((x) => x.id === id && !x.deletedAt);
+    if (!p) continue;
+    p.lastWatered = today;
+    p.updatedAt = now;
+    touched = true;
+  }
+
+  if (touched) commit();
 }
 

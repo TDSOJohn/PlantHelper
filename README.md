@@ -85,6 +85,11 @@ day's germinations, and a day that fills two pages is a day you want to see the
 whole of; the sowings list is the sowings you have going, which is a number
 that stays small on its own.
 
+Both lists of plants are shortened before they are paged, in the other way a
+list of plants gets long: plants potted up from the same sowing fold into
+[one row](#one-tray-one-row) with a count on it, and page 2 arrives twenty
+*rows* in rather than twenty plants.
+
 ## Name and species
 
 The **name** is whatever you actually call the plant — *Basil*, *the big one in
@@ -654,6 +659,83 @@ watering schedule. They are numbered (*Ocimum basilicum 1*, *2*, *3*) when the
 sowing has produced more than one, and each keeps a link back to the sowing it
 came from. Rename them as you like afterwards.
 
+That link is what the next two sections are about: it is why four seedlings out
+of one tray are one row on your lists rather than four, and why they all want
+water on the same day whichever day each of them was potted.
+
+### One tray, one row
+
+Two or more plants still standing from the same sowing draw a **single row** on
+**All plants** and on **Today**, with the count on it and a ▸ to open it in
+place:
+
+```
+▸ Ocimum basilicum · 4 plants · Every 3 days · 2 days late     [✓]
+```
+
+Opening it lists the plants, indented, each still its own row with its own link
+and its own ✓ — a group is a way of folding the list up, not a different kind
+of thing to water. The ✓ on the group itself waters all four, in one go, which
+is how they are watered in life. It is one write and one sync rather than four.
+
+On **Today** a sowing arrives **whole**. The list is otherwise exactly the
+plants that want water, but where one of the four is due the other three come
+with it, and the ✓ waters the tray. That is the only way a tray that has fallen
+out of step gets back into it: water the three that are due today and the
+fourth tomorrow, and they are a day apart for ever. A tray with nothing due is
+not on the list at all.
+
+The threshold is two. A single potted seedling is a plant, and hiding it behind
+a disclosure that reads *1 plant* would be a row and a tap in exchange for
+nothing.
+
+The row says what its most urgent plant says, so it reads like the row it
+replaces — *2 days late* on a group means at least one of them is. What it will
+not do is speak for the group where the group does not agree: put half the tray
+outside, or give one seedling an interval of its own, and the place or the
+schedule simply drops off the row rather than being asserted for all four. Open
+it and each plant says its own.
+
+Groups are not stored anywhere. A group is what you get when you look at the
+plants and notice that some of them came out of the same tray, which was
+already true before anything drew it — so nothing has to be kept in step, and
+deleting the sowing record leaves you with four ordinary plants.
+
+### Watering from the sow date
+
+A potted-up seedling's *every N days* counts from **the day the tray was sown**,
+not from the day that particular seedling was moved into a pot, with every
+cycle that came round before the potting skipped.
+
+Sow on the 1st, every 3 days, pot one up on the 8th: the cycles fell on the
+4th and the 7th while it was still in the tray, so its first watering is the
+**10th**. A sibling potted on the 9th also lands on the 10th. That is the whole
+point — the day a particular seedling was moved is not a fact anybody records,
+and it should not be the thing that decides when it is watered.
+
+A boundary landing on the potting day itself is skipped with the rest, because
+you have just watered the thing in. It is the rule a new plant already follows:
+the clock starts today, and the first watering is N days off.
+
+After that first watering nothing is special about them: the clock runs from
+the last watering, as it does for every plant. Water the group together — one
+tap on its ✓ — and it stays together; water it two days late and all four move
+two days, together.
+
+Like the groups, none of this is written down. The anchor is worked out on the
+way past, so seedlings potted up before this existed are on their sowing's
+rhythm without anything being migrated, changing the species' interval takes
+its plants with it, and the moment a plant is watered or given a schedule of
+its own the sowing stops having anything to say about it.
+
+That last clause is what to expect of a tray potted up before any of this
+existed. Its plants land on the sowing's rhythm — every one of them on the same
+three-day grid — but not necessarily on the same *day* of it: one potted a week
+ago and one potted yesterday sit at different points on that grid, and one that
+has already been watered sits wherever its last watering left it, because the
+last watering is what an interval counts from. Watering the tray once, from the
+✓ on its row, is what brings them together; after that they move as one.
+
 Potting up takes from the seedlings box first — those came up once and must not
 be counted twice — and only what is left over from the seeds still under the
 soil. Plants standing are shown beside the box rather than in it (*4* · *+ 2
@@ -721,6 +803,9 @@ Two things worth knowing:
 - **Missing a weekday schedule does not carry over.** If a Monday plant is not
   watered on Monday, it is simply not due on Tuesday. That is what picking
   weekdays means; use an interval if you want lateness tracked.
+- **A plant potted up from a sowing counts from the sow date instead**, so that
+  a tray potted up over a fortnight still wants water all on the same day. See
+  [watering from the sow date](#watering-from-the-sow-date).
 
 The free-text watering note is still there, for the things a schedule cannot
 express — *less in winter*, *let the soil dry out*.
