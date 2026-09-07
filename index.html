@@ -53,6 +53,9 @@
       <a class="btn primary" href="#/new">Add a plant</a>
     </div>
     <ul id="plant-list" class="list"></ul>
+    <!-- Twenty to a page, and absent entirely until there are twenty-one.
+         Drawn by `drawPager`, which every list here shares. -->
+    <nav id="plant-pager" class="pager" aria-label="Pages of plants" hidden></nav>
   </section>
 
   <!-- ---------- detail ---------- -->
@@ -272,6 +275,7 @@
       <a class="btn primary" href="#/s/new">Add a species</a>
     </div>
     <ul id="species-list" class="list"></ul>
+    <nav id="species-pager" class="pager" aria-label="Pages of species" hidden></nav>
     <p id="no-species" class="empty" hidden>No species yet.<br><span>A species holds the
       conditions and the watering schedule shared by every plant of that kind.</span></p>
   </section>
@@ -343,7 +347,7 @@
   </section>
 
   <!-- ---------- the reference catalogue ----------
-       Read-only, and the one part of the app that needs the Pi: the 11,094
+       Read-only, and the one part of the app that needs the Pi: the 14,944
        entries live in a SQLite file there and are searched there, not held on
        the phone. Reached from the bar rather than from Species, which is why
        this is the one read-only page with no back arrow. -->
@@ -418,10 +422,12 @@
         </div>
 
         <!-- Wikipedia says whether a plant is edible; pfaf.org says how well.
-             One control per kind, offering either. "Mentioned" is the article's
-             word and covers a third of the catalogue; a rating is pfaf.org's
-             0-5 and is the one that narrows. Medicinal has no "mentioned"
-             because Wikipedia was never mined for one. -->
+             One control per kind, offering either. "Mentioned" is the source's
+             word and now covers two thirds of the catalogue — edibleplantdb.org
+             is a site about eating plants, so it says yes to nearly all of its
+             own; a rating is pfaf.org's 0-5 and is the one that narrows.
+             Medicinal has no "mentioned" because Wikipedia was never mined for
+             one. -->
         <div class="filter">
           <span>Edible</span>
           <select id="cat-edible" aria-label="How edible">
@@ -468,16 +474,19 @@
           form and the ratings are pfaf.org's, on the entries it covers;
           "Mentioned" is only that the source brought the use up, so leaving it
           at Any means unmentioned rather than no. pH is the one to distrust:
-          7,305 entries record one, but 6,021 of them record the same band
+          8,499 entries record one, but 6,884 of them record the same band
           6.0&#8211;8.5, so any question inside it keeps almost everything and
           separates nothing. An entry that records nothing matches nothing, and
-          a sixth of them record nothing.</p>
+          a ninth of them record nothing.</p>
         <p id="cat-error" class="hint error" hidden></p>
       </div>
     </form>
 
     <p id="cat-count" class="hint" hidden></p>
     <ul id="cat-list" class="list"></ul>
+    <!-- The one pager whose pages are the server's: a search can run to
+         hundreds of them, and each one is a request to the Pi. -->
+    <nav id="cat-pager" class="pager" aria-label="Pages of results" hidden></nav>
     <p id="cat-empty" class="empty" hidden></p>
   </section>
 

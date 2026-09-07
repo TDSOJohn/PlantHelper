@@ -728,3 +728,23 @@ input.invalid { border-color: var(--danger); }
    as state rather than as decoration. */
 .btn.active { border-color: var(--accent); color: var(--accent); }
 .btn[disabled] { opacity: 0.5; cursor: default; }
+
+/* The pager under a list. Prev and Next are ordinary buttons and keep the
+   height every other button here has, because they are tapped with a thumb at
+   the bottom of a long page; what they do not do is stretch, which .btn does
+   by default — a page-turner as wide as Save reads as the action of the page
+   rather than as a way along it. The label between them takes the slack, so
+   the two sit at the edges where a thumb reaches them either-handed. */
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+}
+.pager .btn { flex: 0 0 auto; }
+.pager .where {
+  flex: 1;
+  text-align: center;
+  color: var(--ink-dim);
+  font-size: 14px;
+}

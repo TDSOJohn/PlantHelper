@@ -3,14 +3,18 @@
 /* =========================================================================
    The reference catalogue
 
-   11,094 species sitting in a SQLite file on the Pi: 5,065 mined from the
-   English Wikipedia dump, 1,132 of those filled out from pfaf.org, and 6,029
-   more that pfaf.org lists and Wikipedia has no article for at all. pfaf.org
-   states soil, shade and hardiness outright where an encyclopedia had to be
-   read for them. It is searched there rather than held here: an encyclopedia
-   has no business in localStorage, and unlike your own plants this is
-   reference data you never edit, so there is nothing to sync and nothing to
-   lose by needing the Pi to read it.
+   14,944 species sitting in a SQLite file on the Pi, out of three sources:
+   5,065 mined from the English Wikipedia dump, 7,161 with a pfaf.org page,
+   and 4,344 with one on edibleplantdb.org, overlapping on 1,578 plants that
+   two or three of them describe. pfaf.org states soil, shade and hardiness
+   outright where an encyclopedia had to be read for them; edibleplantdb.org
+   mostly restates pfaf in prose, and earns its place with the 3,850 plants
+   neither of the others lists and the synonyms it knows the rest by.
+
+   It is searched there rather than held here: an encyclopedia has no business
+   in localStorage, and unlike your own plants this is reference data you never
+   edit, so there is nothing to sync and nothing to lose by needing the Pi to
+   read it.
 
    Entries come back shaped exactly like a plant or a species — same four
    condition groups, same field names — so the formatting below is the code
@@ -63,12 +67,20 @@ function fillMarks(node, entry) {
   return marks;
 }
 
-/* Which sources an entry was built from. Every row starts as a Wikipedia
-   article, so plain `enwiki` says nothing worth a line — it is the absence of
-   the other one, and the page already says Wikipedia twice. Empty on the
-   Wikipedia-only build of the catalogue, which records no provenance at all. */
-const CATALOG_SOURCE = { 'enwiki+pfaf': 'filled out from pfaf.org',
-                         pfaf: 'from pfaf.org, no Wikipedia article' };
+/* Which sources an entry was built from. Plain `enwiki` says nothing worth a
+   line — it is the absence of the other two, and the page already says
+   Wikipedia twice. Empty on the Wikipedia-only build of the catalogue, which
+   records no provenance at all. The seven combinations are spelled out rather
+   than assembled from parts: six of them are a phrase somebody should be able
+   to read once, and a fourth source would be a line here rather than a rule
+   to work out. */
+const CATALOG_SOURCE = {
+  'enwiki+pfaf': 'filled out from pfaf.org',
+  'enwiki+epdb': 'filled out from edibleplantdb.org',
+  'enwiki+pfaf+epdb': 'filled out from pfaf.org and edibleplantdb.org',
+  pfaf: 'from pfaf.org, no Wikipedia article',
+  epdb: 'from edibleplantdb.org, no Wikipedia article',
+  'pfaf+epdb': 'from pfaf.org and edibleplantdb.org, no Wikipedia article' };
 
 /* pfaf.org's three 0-5 ratings, in the order it prints them. Unlike the marks
    these have a real zero — somebody looked and found no use of that kind —
@@ -99,6 +111,23 @@ function fillRatings(node, entry) {
    what `fill` turns into its own "Not recorded". */
 const boolText = (value, yes, no) =>
   typeof value === 'boolean' ? (value ? yes : no) : '';
+
+/* The other names an entry answers to, for the line under it. Both halves of
+   this are the third source's doing. 625 entries have no alias at all now, so
+   the phrase has to be able to come out empty rather than trailing off after
+   "as"; and edibleplantdb.org knows one pandanus by 241 names, which is a
+   paragraph where the line wants a phrase. Twelve is enough to recognise a
+   plant by, and the count is kept rather than dropped because "and 229 more"
+   is itself the useful fact about that entry. */
+const ALIAS_SHOWN = 12;
+
+function aliasText(entry) {
+  const names = entry.aliases || [];
+  if (!names.length) return '';
+  const extra = names.length - ALIAS_SHOWN;
+  const shown = names.slice(0, ALIAS_SHOWN).join(', ');
+  return 'known here as ' + (extra > 0 ? shown + ' and ' + extra + ' more' : shown);
+}
 
 function catalogLightText(entry) {
   const kind = (entry.light && CATALOG_LIGHT[entry.light.kind]) || '';
@@ -188,13 +217,25 @@ function drawCatalogControls(filters) {
 
 let catalogTimer = null;
 let catalogRun = 0;              // replies from an older keystroke are dropped
+/* Which page of the results is on screen. Unlike the two lists in the browser
+   this one is the server's idea of a page — it holds the rows and decides how
+   many make one — so this is only ever a number to ask it for, and what comes
+   back is what the pager is drawn from. */
+let catalogPage = 0;
 
-function queueCatalogSearch(wait) {
+/**
+ * Search again after `wait` ms of quiet, landing on `page`.
+ *
+ * The first page unless told otherwise, because everything that calls this
+ * with one argument has changed the search itself: the results are new ones,
+ * and page nine of the old answer means nothing about them.
+ */
+function queueCatalogSearch(wait, page) {
   clearTimeout(catalogTimer);
-  catalogTimer = setTimeout(runCatalogSearch, wait);
+  catalogTimer = setTimeout(() => runCatalogSearch(page || 0), wait);
 }
 
-async function runCatalogSearch() {
+async function runCatalogSearch(page) {
   const filters = catalogFilters();
   drawCatalogControls(filters);      // before the round trip, not after it
 
@@ -202,6 +243,9 @@ async function runCatalogSearch() {
   for (const name of Object.keys(filters)) {
     if (filters[name]) params.set(name, filters[name]);
   }
+  // Nought is the default at both ends, so the first page asks for nothing and
+  // the common request keeps the shape it has always had.
+  if (page) params.set('page', page);
 
   const query = params.toString();
   const mine = ++catalogRun;
@@ -275,9 +319,24 @@ function drawCatalog(doc, filters) {
   const shown = doc.results.length;
   const count = $('#cat-count');
   count.hidden = shown === 0;
-  count.textContent = doc.total === shown
-    ? doc.total + (doc.total === 1 ? ' entry' : ' entries')
-    : doc.total + ' entries · showing the first ' + shown;
+  // The whole answer, not the page: "7,161 entries" is what the search found,
+  // and the pager underneath says which twentieth of it you are reading. It
+  // used to say "showing the first 60" as well, because the other 7,101 could
+  // not be reached at all; they can now, so the apology has gone with them.
+  count.textContent = doc.total + (doc.total === 1 ? ' entry' : ' entries');
+
+  // Both figures come off the reply rather than being assumed here: the page
+  // size is the server's to choose, and reading it back is what lets this draw
+  // "page 3 of 359" without knowing what a page holds.
+  catalogPage = doc.page || 0;
+  const pages = Math.max(1, Math.ceil(doc.total / (doc.limit || shown || 1)));
+  drawPager($('#cat-pager'), pages, catalogPage, (n) => {
+    // A new page starts at its first row. The two lists in the browser get
+    // this from `show`, which this one never calls — nothing about the view
+    // changes here except the rows in it.
+    $('main').scrollTop = 0;
+    runCatalogSearch(n);
+  });
 
   const empty = $('#cat-empty');
   empty.hidden = shown > 0;
@@ -297,6 +356,10 @@ function drawCatalogProblem(err) {
   $('#cat-list').textContent = '';
   $('#cat-count').hidden = true;
   $('#cat-count').textContent = '';
+  // The rows are gone, so the pager under them has nothing left to page
+  // through — and Next on a search that just failed would only fail again.
+  $('#cat-pager').hidden = true;
+  $('#cat-pager').textContent = '';
 
   // A complaint about what was typed belongs under the boxes; anything else is
   // about the Pi, and belongs where the results would have been.
@@ -360,8 +423,9 @@ function catalogRow(entry) {
 
 function renderCatalog() {
   // The boxes are left exactly as they were: coming back from an entry should
-  // land on the search that found it, not on a blank form.
-  queueCatalogSearch(0);
+  // land on the search that found it, not on a blank form — and on the page of
+  // it you were reading, which is what the second argument carries.
+  queueCatalogSearch(0, catalogPage);
   show('catalog', 'Catalogue');
 }
 
@@ -397,7 +461,7 @@ async function renderCatalogEntry(pageId) {
 
   fill($('#c-temp'), tempText(entry), 'Not recorded');
   // A minimum read off a hardiness zone is a coarser figure than one an editor
-  // wrote in a sentence, and 5,420 of the entries have one.
+  // wrote in a sentence, and 6,515 of the entries have one.
   const zoned = $('#c-temp-from');
   zoned.hidden = !entry.fromZone;
   zoned.textContent = entry.fromZone ? 'from a zone' : '';
@@ -406,11 +470,12 @@ async function renderCatalogEntry(pageId) {
   const ph = phText(entry);
   fill($('#c-ph'), ph && 'pH ' + ph, 'Not recorded');
   // The same warning, for the same reason. pfaf.org states soil as named
-  // bands rather than numbers, so 7,070 of the 7,305 entries that carry a pH
-  // carry the edges of a band somebody named — 6.0-8.5 is "mildly acid to
-  // mildly alkaline" and not a figure anyone measured. There are six such
-  // pairs in the whole catalogue against 102 written out by hand, which is
-  // the shape of a vocabulary rather than of a measurement.
+  // bands rather than numbers and edibleplantdb.org repeats those bands in
+  // prose, so 8,087 of the 8,499 entries that carry a pH carry the edges of a
+  // band somebody named — 6.0-8.5 is "mildly acid to mildly alkaline" and not
+  // a figure anyone measured. There are seven such pairs in the whole
+  // catalogue against 114 written out by hand, which is the shape of a
+  // vocabulary rather than of a measurement.
   const banded = $('#c-ph-from');
   banded.hidden = !entry.phFromBands;
   banded.textContent = entry.phFromBands ? 'from soil bands' : '';
@@ -452,7 +517,7 @@ async function renderCatalogEntry(pageId) {
   const article = entry.pageId > 0;
   $('#c-meta').textContent = [article ? 'Wikipedia page ' + entry.pageId : '',
                               CATALOG_SOURCE[entry.source],
-                              'known here as ' + (entry.aliases || []).join(', ')]
+                              aliasText(entry)]
                              .filter(Boolean).join(' · ');
 
   const wiki = $('#c-wiki');

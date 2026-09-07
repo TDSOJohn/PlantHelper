@@ -12,13 +12,20 @@ const speciesSummary = (record) => {
 
 const followerCount = (record) => live().filter((p) => p.speciesId === record.id).length;
 
+/* Which page of the list is on screen, kept for the same reason the plants
+   list keeps its own: opening a species and coming back should land where you
+   were standing. */
+let speciesPage = 0;
+
 function renderSpecies() {
   const items = liveSpecies().slice().sort(byName);
+  const pages = pageCount(items.length);
+  speciesPage = clampPage(speciesPage, pages);
 
   const ul = $('#species-list');
   ul.textContent = '';
 
-  for (const record of items) {
+  for (const record of pageOf(items, speciesPage)) {
     const li = document.createElement('li');
     const a = document.createElement('a');
     a.href = '#/s/' + encodeURIComponent(record.id);
@@ -45,6 +52,11 @@ function renderSpecies() {
     li.appendChild(a);
     ul.appendChild(li);
   }
+
+  drawPager($('#species-pager'), pages, speciesPage, (n) => {
+    speciesPage = n;
+    renderSpecies();
+  });
 
   $('#no-species').hidden = items.length > 0;
   show('species', items.length ? `Species (${items.length})` : 'Species');

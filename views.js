@@ -82,10 +82,11 @@ function render() {
   if (path === '/seed/new') return renderSeedForm(null);
   if (path === '/catalog') return renderCatalog();
 
-  // The minus sign is part of the id, not a typo: the 6,029 catalogue
-  // entries pfaf.org contributed on its own have no Wikipedia page id and
-  // carry a negative one instead, so a pattern of digits alone would drop
-  // every one of them on the floor and quietly render Today.
+  // The minus sign is part of the id, not a typo: the 9,879 catalogue
+  // entries that came from pfaf.org or edibleplantdb.org rather than from an
+  // article have no Wikipedia page id and carry a negative one instead, so a
+  // pattern of digits alone would drop every one of them on the floor and
+  // quietly render Today.
   const entryMatch = path.match(/^\/c\/(-?\d+)$/);
   if (entryMatch) return renderCatalogEntry(entryMatch[1]);
 
@@ -114,6 +115,68 @@ function render() {
 }
 
 /* ---------- lists ---------- */
+
+/* How many rows a list puts on one page. Twenty is a thumb's worth of
+   scrolling on a phone and a number you can hold in your head — "the second
+   page" means something on a list of forty plants in a way that "somewhere
+   past the middle" does not.
+
+   The catalogue's pages are not this size: the server slices those, because it
+   is the one holding 14,944 rows, and it names the size in every reply. So
+   this is the size of the two lists that live in the browser, and `drawPager`
+   below is told a page count rather than working one out, so that both kinds
+   can use it. */
+const PAGE_SIZE = 20;
+
+/** How many pages `n` rows make — always at least one, because an empty list
+    still has a first page and it is the one saying it is empty. */
+const pageCount = (n) => Math.max(1, Math.ceil(n / PAGE_SIZE));
+
+/** The rows page `page` shows, counting from nought. */
+const pageOf = (items, page) => items.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+/** A page number brought back inside a list that has changed under it —
+    deleting the last plant on the last page is the ordinary way that
+    happens. */
+const clampPage = (page, pages) => Math.min(Math.max(page, 0), pages - 1);
+
+/**
+ * Draws "‹ Prev · Page 2 of 5 · Next ›" into `node`, and hides it where
+ * everything fits on one page — which is every list until it grows, so the
+ * ordinary case is a list with nothing under it at all.
+ *
+ * Prev and Next rather than numbered pages: a catalogue search can run to
+ * hundreds of pages, and a row of numbers wide enough to be worth having is
+ * wider than a phone. Walking to page 200 is not the way to find anything
+ * there — narrowing the search is — so the pager is for reading on rather than
+ * for jumping about.
+ */
+function drawPager(node, pages, page, go) {
+  node.textContent = '';
+  node.hidden = pages < 2;
+  if (pages < 2) return;
+
+  const step = (label, to, enabled) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'btn';
+    button.textContent = label;
+    // Disabled rather than absent at either end: a button that vanishes takes
+    // the one beside it with it, and Next lands where Prev was standing.
+    button.disabled = !enabled;
+    if (enabled) button.onclick = () => go(to);
+    node.appendChild(button);
+  };
+
+  step('‹ Prev', page - 1, page > 0);
+
+  const where = document.createElement('span');
+  where.className = 'where';
+  where.textContent = 'Page ' + (page + 1) + ' of ' + pages;
+  node.appendChild(where);
+
+  step('Next ›', page + 1, page < pages - 1);
+}
 
 /**
  * One row: a link to the plant, plus (on today's list) a button to tick it off
@@ -202,14 +265,29 @@ function renderToday() {
   show('list', total ? `Today (${total})` : 'Today');
 }
 
+/* Which page of the list is on screen. Kept here rather than in the route so
+   that opening a plant and coming back lands where you were — the same reason
+   the catalogue keeps its search — and forgotten on reload, when a list you
+   have not seen for a day is better met from the top. */
+let plantsPage = 0;
+
 function renderAll() {
   const today = todayKey();
   const items = live().sort(byName);
+  const pages = pageCount(items.length);
+  plantsPage = clampPage(plantsPage, pages);
 
   const ul = $('#plant-list');
   ul.textContent = '';
-  for (const p of items) ul.appendChild(plantRow(p, today, false));
+  for (const p of pageOf(items, plantsPage)) ul.appendChild(plantRow(p, today, false));
 
+  drawPager($('#plant-pager'), pages, plantsPage, (n) => {
+    plantsPage = n;
+    renderAll();          // `show` inside it puts the new page at the top
+  });
+
+  // The count is the whole list, not the page: it answers "how many plants do
+  // I have", which is not a question about where you are standing in them.
   show('all', `All plants (${items.length})`);
 }
 
