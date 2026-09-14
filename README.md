@@ -296,8 +296,18 @@ and it is why the section below has two labels to distrust rather than one.
 **9,879** rows carry a **negative** page id. The column is Wikipedia's page id
 and they have none, so `plants_db` hands them a key that obviously is not one
 rather than inventing a number a future dump could collide with. Nothing in the
-app minds, and the one thing it forbids — a link to Wikipedia — is the one
-thing that would have been a lie.
+app minds.
+
+A negative id does not mean Wikipedia has no article, only that none was mined:
+the first pass over the dump skipped them, mostly stubs with no section on
+growing the plant. So `plants_db` read the dump a second time and matched
+**7,154** of the 9,879 to an article by name — *Viburnum furcatum*, *Choisya
+ternata* — taking the article's first paragraph as the entry's **Lead**. The
+link is read from its own `wiki_url` column rather than built from the id, and
+the other **2,725** have none, so their entry offers no link rather than a
+wrong one. **389** of the matches land on the article about the plant's species
+or genus — a variety whose species alone has a page — and the button on those
+says *Open the species on Wikipedia* or *Open the genus on Wikipedia*.
 
 It is the one part of the app that needs the Pi. Your plants are held in the
 browser and work offline; an encyclopedia has no business in `localStorage`, so
@@ -311,11 +321,11 @@ storage question; whether you have one at all is a licensing question:
 
 | | | |
 |---|---|---|
-| `data/plants.sqlite` | 4.6 MB | Wikipedia only, 5,065 rows. **In the repo.** |
-| `data/plants.export.sqlite` | 12.4 MB | All three sources, 14,944 rows. The one that gets deployed. **Not in the repo**, and in `.gitignore`. |
-| `data/plants.full.sqlite` | 60.9 MB | The same 14,944 rows with both raw crawls still attached. Lives only on the machine that built it. **Not in the repo**, and in `.gitignore`. |
+| `data/plants.sqlite` | 4.9 MB | Wikipedia only, 5,065 rows. **In the repo.** |
+| `data/plants.export.sqlite` | 15.8 MB | All three sources, 14,944 rows. The one that gets deployed. **Not in the repo**, and in `.gitignore`. |
+| `data/plants.full.sqlite` | 61.6 MB | The same 14,944 rows with both raw crawls still attached. Lives only on the machine that built it. **Not in the repo**, and in `.gitignore`. |
 
-The last two hold the identical catalogue. The 48 MB between them is the `pfaf`
+The last two hold the identical catalogue. The 46 MB between them is the `pfaf`
 and `epdb` tables — the two crawls in full, one row per page read, kept so a
 later mining of those pages needs no second pass over them. The app has never
 queried either and `server.py` does not know they exist, so the copy that
@@ -343,6 +353,20 @@ the `growth_form` / `moisture` / `drought_tolerant` / `weed_potential` four —
 empty rather than omitting them, so there is one shape for `server.py` to read
 and no build to special-case. It also carries the three indexes those columns
 brought with them, over nothing, for the same reason.
+
+The two naming an article, `wiki_url` and `wiki_match`, are filled in on every
+build. On the Wikipedia-only one they were added in this repo rather than by
+`plants_db`, whose own copy of that build predates the pass that made them.
+Every row there is an article, so every link is the `?curid=` form, and a fresh
+copy of that build needs the same three statements before `server.py` can open
+an entry from it:
+
+```sql
+ALTER TABLE species ADD COLUMN wiki_url TEXT;
+ALTER TABLE species ADD COLUMN wiki_match TEXT;
+UPDATE species SET wiki_url = 'https://en.wikipedia.org/?curid=' || page_id,
+                   wiki_match = 'article';
+```
 
 The full builds carry one column the small one does not: `epdb_filled`, which
 records what the edibleplantdb.org pass wrote into a row so that a later run of
@@ -391,8 +415,8 @@ cd plants && sudo ./install.sh
 ```
 
 The `scp` on its own is the whole update where you do not run the app locally,
-which is what [step 2](#2-install) shows — and it is 12.4 MB over the Pi's
-Wi-Fi rather than 60.9, which is the whole reason the export build exists as a
+which is what [step 2](#2-install) shows — and it is 15.8 MB over the Pi's
+Wi-Fi rather than 61.6, which is the whole reason the export build exists as a
 step rather than as a footnote suggesting you could drop the tables if you felt
 like it.
 
@@ -430,8 +454,8 @@ match 6,834 of them — every plant whose ceiling nobody happened to write down.
 That is a count of what the sources are missing, dressed up as an answer. Each
 new source widens that gap rather than closing it: hardiness is exactly the end
 a plant database states, and the other end still nobody does. Of the 5,059
-plants here with no Wikipedia article that record a temperature at all, 5,041
-record only a floor.
+plants here not mined from a Wikipedia article that record a temperature at
+all, 5,041 record only a floor.
 
 **Height** is asked from both ends, and both ends bound the same figure: the
 tallest recorded, which is the top of the range where the article gave one and
@@ -594,7 +618,7 @@ a vocabulary that bottoms out at *mildly acid* cannot produce a genuinely
 acid-loving plant.
 
 The promotions filled this column rather than skipping it: 7,174 of the 9,879
-plants with no Wikipedia article carry a pH, 7,020 of them banded, which is the
+plants not mined from an article carry a pH, 7,020 of them banded, which is the
 whole of the jump from 1,278 to 8,499. A pH nobody read off a word is no longer
 quite the same thing as a Wikipedia article, though it nearly is: of the 412
 unbanded figures, 258 come from an article and the other 154 are the numbers
@@ -611,7 +635,10 @@ with no *Uses* sentence at all, and show the mark alone.
 view onto the file, so anything wrong with the file should be visible here
 rather than tidied up on the way past. (Earlier builds leaked taxobox tails —
 `| image = … | genus = …` — into about a third of the leads. `plants_db` fixed
-that at the source, which is where such a fix belongs.)
+that at the source, which is where such a fix belongs.) On the 7,154 plants
+matched to an article after the fact, it is that article's first paragraph —
+which on a genus match is about the genus: *Sonneratia apetala* opens with
+"Sonneratia is a genus of plants".
 
 Nothing is copied into your own records behind your back, and the app never
 writes to the file. **Add as a species** on an entry is the one road out of the

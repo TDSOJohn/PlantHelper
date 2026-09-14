@@ -73,14 +73,16 @@ function fillMarks(node, entry) {
    records no provenance at all. The seven combinations are spelled out rather
    than assembled from parts: six of them are a phrase somebody should be able
    to read once, and a fourth source would be a line here rather than a rule
-   to work out. */
+   to work out. They say where the figures came from and nothing about whether
+   there is an article to read: most plants no article was mined for have been
+   matched to one since, and the link says that. */
 const CATALOG_SOURCE = {
   'enwiki+pfaf': 'filled out from pfaf.org',
   'enwiki+epdb': 'filled out from edibleplantdb.org',
   'enwiki+pfaf+epdb': 'filled out from pfaf.org and edibleplantdb.org',
-  pfaf: 'from pfaf.org, no Wikipedia article',
-  epdb: 'from edibleplantdb.org, no Wikipedia article',
-  'pfaf+epdb': 'from pfaf.org and edibleplantdb.org, no Wikipedia article' };
+  pfaf: 'from pfaf.org',
+  epdb: 'from edibleplantdb.org',
+  'pfaf+epdb': 'from pfaf.org and edibleplantdb.org' };
 
 /* pfaf.org's three 0-5 ratings, in the order it prints them. Unlike the marks
    these have a real zero — somebody looked and found no use of that kind —
@@ -510,20 +512,28 @@ async function renderCatalogEntry(pageId) {
 
   fill($('#c-notes'), entry.notes, 'Nothing quotable in the article');
   fill($('#c-lead'), entry.lead, 'No lead stored');
-  // A page id is Wikipedia's, so a plant Wikipedia has no article for cannot
-  // have one — `plants_db --promote` gives those a negative id precisely
+  // A page id is Wikipedia's, so a plant whose figures came from no article
+  // cannot have one — `plants_db --promote` gives those a negative id precisely
   // because a key that is obviously not a page id cannot collide with a real
-  // one. Naming it or linking to it would both be lies, so neither happens.
+  // one. Naming it would be a lie, so it is not named.
   const article = entry.pageId > 0;
   $('#c-meta').textContent = [article ? 'Wikipedia page ' + entry.pageId : '',
                               CATALOG_SOURCE[entry.source],
+                              entry.wikiUrl ? '' : 'no Wikipedia article',
                               aliasText(entry)]
                              .filter(Boolean).join(' · ');
 
+  // The link is a column of its own rather than built from the id, because
+  // most of those negative ids have an article after all: plants_db matched
+  // 7,154 of them to one by name, and their lead is that article's too. A
+  // `genus` or `species` match is an article about something broader than
+  // this plant, so the button says so rather than promising the plant itself.
   const wiki = $('#c-wiki');
-  wiki.hidden = !article;
-  wiki.href = article
-    ? 'https://en.wikipedia.org/?curid=' + encodeURIComponent(entry.pageId) : '#';
+  wiki.hidden = !entry.wikiUrl;
+  wiki.href = entry.wikiUrl || '#';
+  wiki.textContent = entry.wikiMatch === 'genus' ? 'Open the genus on Wikipedia'
+    : entry.wikiMatch === 'species' ? 'Open the species on Wikipedia'
+    : 'Open on Wikipedia';
 
   // The way out of the catalogue and into your own records. It says which
   // species it would fill, because filling one you already keep is the common

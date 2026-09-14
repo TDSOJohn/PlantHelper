@@ -244,12 +244,14 @@ class Catalog:
     edibleplantdb.org alone; the remaining 1,578 are two or three of them
     agreeing on the same plant.
 
-    The 9,879 with no article behind them carry a *negative* `page_id`. The
+    The 9,879 not mined from an article carry a *negative* `page_id`. The
     column is Wikipedia's page id and they have none, so ../plants_db hands
     them a key that obviously is not
     one rather than inventing a number a future dump could collide with. It is
-    a valid key everywhere here — `CATALOG_API` accepts the minus sign — and
-    the only thing it forbids is a link to Wikipedia, which the page handles.
+    a valid key everywhere here — `CATALOG_API` accepts the minus sign — and it
+    is not what links an entry to Wikipedia: `wiki_url` is. A later pass matched
+    7,154 of those 9,879 to an article by name, so a link built out of
+    `page_id` would leave every one of them out.
 
     Read-only, and deliberately not part of plants.json. It is the opposite
     kind of data: nobody edits it, it is rebuilt from scratch whenever the
@@ -269,11 +271,12 @@ class Catalog:
     to show.
 
     Every build carries every column read here, including the nine pfaf.org
-    added. The Wikipedia-only one leaves those empty rather than omitting them,
-    so there is one shape to read and no build to special-case. The two full
-    builds carry one column beyond that — `epdb_filled`, which records what the
-    edibleplantdb.org pass wrote so a later run can take it back — and nothing
-    here reads it, which is why an extra column costs nothing.
+    added and the two naming a Wikipedia article. The Wikipedia-only one leaves
+    the nine empty rather than omitting them, so there is one shape to read and
+    no build to special-case. The two full builds carry one column beyond that
+    — `epdb_filled`, which records what the edibleplantdb.org pass wrote so a
+    later run can take it back — and nothing here reads it, which is why an
+    extra column costs nothing.
     """
 
     # What a filter may ask about. Three shapes for the numbers, because the
@@ -302,7 +305,7 @@ class Catalog:
     #              as an answer. Each source widens the gap rather than
     #              closing it: hardiness is the one end a plant database
     #              states, and the other end still nobody does. Of the 5,059
-    #              plants with no Wikipedia article that record a temperature
+    #              plants not mined from an article that record a temperature
     #              at all, 5,041 record only a floor.
     #   heightMin  both ends of the height question, and both bound the same
     #   heightMax  figure: the tallest it is known to get, which is the maximum
@@ -466,6 +469,14 @@ class Catalog:
                     out[name] = bool(row[column])
             out["notes"] = row["notes"] or ""
             out["lead"] = row["lead"] or ""
+            # The article to open, and how ../plants_db found it. Every row
+            # mined from one has a link, and so do 7,154 of the 9,879 that
+            # were not — matched to an article by name afterwards, which is
+            # also where their `lead` comes from. A "genus" or "species" match
+            # is an article about something broader than this plant, and the
+            # page says so on the button.
+            out["wikiUrl"] = row["wiki_url"] or ""
+            out["wikiMatch"] = row["wiki_match"] or ""
             # What the flags are about, in the article's words. Search results
             # get the flags but not this: it is a paragraph, times sixty rows.
             out["uses"] = row["uses"] or ""
