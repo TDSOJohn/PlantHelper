@@ -286,6 +286,11 @@
        into the form is a button rather than the whole page. -->
   <section id="view-species-detail" class="view" hidden>
     <div class="detail">
+      <!-- The linked catalogue entry's photo, credited as it is there. -->
+      <figure id="sd-photo" class="c-photo" hidden>
+        <img alt="">
+        <figcaption></figcaption>
+      </figure>
       <h2 id="sd-name"></h2>
       <p id="sd-known" class="meta" hidden></p>
 
@@ -347,7 +352,7 @@
   </section>
 
   <!-- ---------- the reference catalogue ----------
-       Read-only, and the one part of the app that needs the Pi: the 14,944
+       Read-only, and the one part of the app that needs the Pi: the 14,349
        entries live in a SQLite file there and are searched there, not held on
        the phone. Reached from the bar rather than from Species, which is why
        this is the one read-only page with no back arrow. -->
@@ -474,7 +479,7 @@
           form and the ratings are pfaf.org's, on the entries it covers;
           "Mentioned" is only that the source brought the use up, so leaving it
           at Any means unmentioned rather than no. pH is the one to distrust:
-          8,499 entries record one, but 6,884 of them record the same band
+          7,895 entries record one, but 6,352 of them record the same band
           6.0&#8211;8.5, so any question inside it keeps almost everything and
           separates nothing. An entry that records nothing matches nothing, and
           a ninth of them record nothing.</p>
@@ -493,6 +498,12 @@
   <!-- ---------- one catalogue entry ---------- -->
   <section id="view-catalog-detail" class="view" hidden>
     <div class="detail">
+      <!-- The credit is not optional: all but the CC0 and public-domain
+           photos are licensed on condition it is shown beside them. -->
+      <figure id="c-photo" class="c-photo" hidden>
+        <img alt="">
+        <figcaption></figcaption>
+      </figure>
       <h2 id="c-title"></h2>
       <p id="c-binomial" class="meta"></p>
 

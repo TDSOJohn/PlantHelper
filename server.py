@@ -16,6 +16,8 @@ Serves the static page, one JSON endpoint and the plant photos:
                         &aquatic=&pfaf=&edible=&medicinal=&otherUses=&page=
                               ->  the reference catalogue, one page at a time
     GET    /api/catalog/<pageId>            ->  one entry in full
+    GET    /api/catalog/<pageId>/thumb?v=   ->  its photo, a 160 px JPEG
+                                               (no v: a redirect to the one with it)
 
 A PUT to /api/plants is *merged* with what is already on disk rather than
 replacing it, so two phones that were both edited offline can sync in any order
@@ -43,10 +45,11 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 API_PATH = "/api/plants"
 PHOTO_API = re.compile(r"^/api/photo/([A-Za-z0-9_-]{1,64})$")
 PHOTO_FILE = re.compile(r"^/photos/([A-Za-z0-9_-]{1,64})\.jpg$")
-# The id is Wikipedia's page id, and the 9,879 plants it has no article for
+# The id is Wikipedia's page id, and the 9,284 plants it has no article for
 # carry a negative one instead — see `Catalog` below. A minus sign is part of
 # the key, so the route has to accept it or those entries cannot be opened.
 CATALOG_API = re.compile(r"^/api/catalog(?:/(-?[0-9]{1,12}))?$")
+CATALOG_THUMB = re.compile(r"^/api/catalog/(-?[0-9]{1,12})/thumb$")
 
 # What a plant id has to look like before it is turned into a file name. The
 # two routes above get this from their own patterns; the sweep below needs it
@@ -70,6 +73,9 @@ CATALOG_LIMIT = 20                # rows on one page of a search
 # below, so everything here reads whichever it is given without knowing which
 # it got.
 CATALOG_NAMES = ("plants.export.sqlite", "plants.full.sqlite", "plants.sqlite")
+# The catalogue's photos, looked for beside whichever build was picked. Not in
+# the repo either: most are CC BY-NC. See `Thumbs` below.
+THUMBS_NAME = "plants.thumbs.sqlite"
 
 _lock = threading.Lock()
 
@@ -229,28 +235,28 @@ def like_escape(text):
 
 
 class Catalog:
-    """The reference catalogue: 14,944 species built by ../plants_db.
+    """The reference catalogue: 14,349 species built by ../plants_db.
 
     Three sources behind those rows, in the seven combinations that `source`
     names per row. 5,065 are an English Wikipedia article, 7,161 have a
     pfaf.org page — which states soil, shade and hardiness outright where an
-    encyclopedia had to be mined for them — and 4,344 have a page on
+    encyclopedia had to be mined for them — and 3,751 have a page on
     edibleplantdb.org, an aggregate whose own figures mostly restate pfaf's
-    and whose worth here is the tail it adds: 3,850 plants neither of the
-    other two lists, and 28,636 synonyms that make the other rows findable
+    and whose worth here is the tail it adds: 3,255 plants neither of the
+    other two lists, and 28,374 synonyms that make the other rows findable
     under the names they used to have.
 
-    3,592 rows are Wikipedia alone, 5,924 pfaf.org alone and 3,850
-    edibleplantdb.org alone; the remaining 1,578 are two or three of them
+    3,587 rows are Wikipedia alone, 5,927 pfaf.org alone and 3,255
+    edibleplantdb.org alone; the remaining 1,580 are two or three of them
     agreeing on the same plant.
 
-    The 9,879 not mined from an article carry a *negative* `page_id`. The
+    The 9,284 not mined from an article carry a *negative* `page_id`. The
     column is Wikipedia's page id and they have none, so ../plants_db hands
     them a key that obviously is not
     one rather than inventing a number a future dump could collide with. It is
     a valid key everywhere here — `CATALOG_API` accepts the minus sign — and it
     is not what links an entry to Wikipedia: `wiki_url` is. A later pass matched
-    7,154 of those 9,879 to an article by name, so a link built out of
+    6,699 of those 9,284 to an article by name, so a link built out of
     `page_id` would leave every one of them out.
 
     Read-only, and deliberately not part of plants.json. It is the opposite
@@ -283,30 +289,30 @@ class Catalog:
     # data has three.
     #
     # BANDS: the recorded range has to cover the figure, with an unrecorded end
-    # treated as open. Right for pH, where 8,458 of the 8,499 entries that
+    # treated as open. Right for pH, where 7,854 of the 7,895 entries that
     # record one record both ends — pfaf.org's soil bands always give two,
     # because two ends is what a band is, and edibleplantdb.org restates the
     # same bands in prose. That is also the warning in the page's own hint:
-    # 6,884 of those ranges are the single band 6.0–8.5, so asking for pH 6.5
-    # keeps 8,388 of the 8,499 and a pH question throws away almost nothing it
+    # 6,352 of those ranges are the single band 6.0–8.5, so asking for pH 6.5
+    # keeps 7,782 of the 7,895 and a pH question throws away almost nothing it
     # can see. It is the widest filter here and the least informative, and the
     # two go together: the two promotions took the column from 1,278 rows to
-    # 8,499 by reading words off pages, and words are not measurements. Only
-    # the extremes still bite — pH 5.0 leaves 141.
+    # 7,895 by reading words off pages, and words are not measurements. Only
+    # the extremes still bite — pH 5.0 leaves 142.
     #
     # AT_MOST / AT_LEAST: one recorded figure has to be at or below — or at or
     # above — the number typed.
     #
     #   temp       the coldest it is known to take. A floor rather than a band
-    #              because 6,921 entries say how cold a plant goes and 96 how
-    #              hot: asked as a band, "survives 45 °C" matches 6,834 of
+    #              because 6,931 entries say how cold a plant goes and 96 how
+    #              hot: asked as a band, "survives 45 °C" matches 6,844 of
     #              them — every plant whose ceiling simply nobody wrote down.
     #              That is a count of what the sources are missing, dressed up
     #              as an answer. Each source widens the gap rather than
     #              closing it: hardiness is the one end a plant database
-    #              states, and the other end still nobody does. Of the 5,059
+    #              states, and the other end still nobody does. Of the 5,068
     #              plants not mined from an article that record a temperature
-    #              at all, 5,041 record only a floor.
+    #              at all, 5,050 record only a floor.
     #   heightMin  both ends of the height question, and both bound the same
     #   heightMax  figure: the tallest it is known to get, which is the maximum
     #              where a range was given and the single figure otherwise
@@ -348,7 +354,7 @@ class Catalog:
     # brought the use up — an article that mentions eating the plant, or a
     # pfaf.org page that rates it above 0, or an edibleplantdb.org page, which
     # is a site about eating plants and so says yes to nearly all of its own —
-    # and 10,062 entries carry the edible one, which is 67% of the catalogue
+    # and 9,467 entries carry the edible one, which is 66% of the catalogue
     # and so barely narrows anything at all any more. The rating is pfaf.org's
     # 0-5 on the 7,161 entries it covers, and it is the sharp instrument:
     # 1,937 rate 3/5 or better for food, 879 for medicine.
@@ -381,8 +387,9 @@ class Catalog:
     # over the catalogue should still be able to say what it means.
     KINDS = ("direct", "indirect", "partial", "shade")
 
-    def __init__(self, path):
+    def __init__(self, path, thumbs=None):
         self.path = os.path.abspath(path)
+        self.thumbs = thumbs
         self._coverage = None
 
     def available(self):
@@ -415,6 +422,10 @@ class Catalog:
         """
         out = {"pageId": row["page_id"], "title": row["title"],
                "binomial": row["binomial"], "score": row["score"]}
+        # Where the page fetches its photo, or null where there is none — sent
+        # on every row so a list of twenty asks for the ones that exist and not
+        # for twenty to find out.
+        out["thumb"] = self.thumbs.url(row["page_id"]) if self.thumbs else None
 
         groups = {
             "temps": {"absMin": row["temp_abs_min"], "avgMin": row["temp_avg_min"],
@@ -451,7 +462,7 @@ class Catalog:
             # The two figures that were derived rather than read. Both are
             # honest numbers standing in for a coarser statement, and both are
             # worth distrusting on sight: a minimum read off a hardiness zone
-            # (6,515 rows) and a pH read off named soil bands (8,087).
+            # (6,525 rows) and a pH read off named soil bands (7,480).
             out["fromZone"] = bool(row["temp_abs_min_from_zone"])
             out["phFromBands"] = bool(row["ph_from_bands"])
             # What kind of plant it is and what soil it wants, in pfaf.org's
@@ -470,7 +481,7 @@ class Catalog:
             out["notes"] = row["notes"] or ""
             out["lead"] = row["lead"] or ""
             # The article to open, and how ../plants_db found it. Every row
-            # mined from one has a link, and so do 7,154 of the 9,879 that
+            # mined from one has a link, and so do 6,699 of the 9,284 that
             # were not — matched to an article by name afterwards, which is
             # also where their `lead` comes from. A "genus" or "species" match
             # is an article about something broader than this plant, and the
@@ -505,7 +516,7 @@ class Catalog:
         for name, (low, high) in self.BANDS.items():
             if name not in terms:
                 continue
-            # One end has to be recorded, or the 6,445 rows with no pH at all
+            # One end has to be recorded, or the 6,454 rows with no pH at all
             # would answer every pH question. The other end may be missing:
             # a range known only to start at 4.0 still says something about 6.5.
             where.append("(({low} IS NOT NULL OR {high} IS NOT NULL)"
@@ -549,13 +560,13 @@ class Catalog:
         # Wikipedia also has an article: the ones that state soil, shade and
         # hardiness outright instead of having had them read out of prose, and
         # the only ones carrying a rating. Worth asking for on its own — it is
-        # the difference between a catalogue of 14,944 names and a shortlist of
+        # the difference between a catalogue of 14,349 names and a shortlist of
         # plants somebody actually wrote the growing conditions down for.
         #
         # This was once written as the complement of `enwiki`, on the argument
         # that a third source should be included by default rather than
         # silently dropped. The third source arrived and that reading was
-        # simply wrong: it answered "has a pfaf.org page" with the 4,344 rows
+        # simply wrong: it answered "has a pfaf.org page" with the 3,255 rows
         # that have an edibleplantdb.org one instead, none of which carries a
         # rating. Naming pfaf is what the question asks, so it is named. On the
         # Wikipedia-only build no row is stamped at all, so this matches
@@ -608,6 +619,11 @@ class Catalog:
             record = self._shape(row, full=True)
             record["aliases"] = [r[0] for r in conn.execute(
                 "SELECT key FROM alias WHERE page_id = ? ORDER BY key", (page_id,))]
+            # Whose photo it is, which every licence but cc0 and pd requires
+            # shown beside it. Only here: a row in a list is a thumbnail
+            # leading to this page, and this page is where it is credited.
+            record["photo"] = (self.thumbs.credit(page_id)
+                               if record["thumb"] else None)
             return record
         finally:
             conn.close()
@@ -659,12 +675,91 @@ class Catalog:
         return self._coverage
 
 
+class Thumbs:
+    """A photo for 9,480 of the catalogue's entries, from ../plants_db/thumbs.py.
+
+    Cut from edibleplantdb.org's galleries, most of them iNaturalist uploads
+    and the rest GBIF — mostly herbarium sheets — and Wikimedia Commons: one
+    per `page_id`, 160 px on the long edge, with the source, licence and credit
+    each was captioned with. Every licence but cc0 and pd requires that credit
+    shown beside the picture, which the entry page does.
+
+    A file of its own rather than a table in the catalogue, because the two
+    change at different rates — the catalogue whenever a rule in plants_db
+    moves, the photos only when the ZIM does — and at 51 MB this would more
+    than quadruple what goes over the Pi's Wi-Fi for each of those rebuilds.
+    Optional for the same reason: without it every `thumb` is null and the
+    catalogue is what it was before there were photos.
+    """
+
+    def __init__(self, path):
+        self.path = os.path.abspath(path)
+        self._index = None
+
+    def available(self):
+        return os.path.exists(self.path)
+
+    def _connect(self):
+        uri = "file:%s?mode=ro" % urllib.parse.quote(self.path)
+        conn = sqlite3.connect(uri, uri=True)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    def _load(self):
+        """Which entries have a photo, and the token that versions them all.
+
+        9,480 integers, held for the life of the process so a search needs no
+        second file opened to say which of its twenty rows have one. Cached
+        like `Catalog.coverage` and for the same reason: a new file is copied
+        in with a restart behind it. The token is when and at what size the
+        file was cut, so the page can cache photos hard and still see a new
+        cut — at another size, too — the moment one is installed.
+        """
+        if self._index is None:
+            if not self.available():
+                return frozenset(), ""
+            conn = self._connect()
+            try:
+                ids = frozenset(r[0] for r in conn.execute("SELECT page_id FROM thumb"))
+                meta = dict(conn.execute("SELECT key, value FROM meta").fetchall())
+            finally:
+                conn.close()
+            self._index = ids, "%s-%s" % (meta.get("built", ""), meta.get("size", ""))
+        return self._index
+
+    def url(self, page_id):
+        """The photo's address relative to the page, as every other address
+        the page builds is, or None where the entry has no photo."""
+        ids, version = self._load()
+        if page_id not in ids:
+            return None
+        return "api/catalog/%d/thumb?v=%s" % (page_id, urllib.parse.quote(version))
+
+    def credit(self, page_id):
+        conn = self._connect()
+        try:
+            row = conn.execute("SELECT width, height, source, licence, credit"
+                               " FROM thumb WHERE page_id = ?", (page_id,)).fetchone()
+        finally:
+            conn.close()
+        return dict(row) if row else None
+
+    def jpeg(self, page_id):
+        conn = self._connect()
+        try:
+            row = conn.execute("SELECT jpeg FROM thumb WHERE page_id = ?",
+                               (page_id,)).fetchone()
+        finally:
+            conn.close()
+        return row[0] if row else None
+
+
 def pick_catalog(folder):
     """Which of the three builds to serve, given a folder.
 
     The first one there wins, and the order puts the deployable build ahead of
     the one carrying the crawls: they hold the same catalogue, so serving the
-    12 MB file rather than the 61 MB one costs nothing and is what the Pi has.
+    15 MB file rather than the 61 MB one costs nothing and is what the Pi has.
     Falling back rather than failing is the point: the repo carries only the
     Wikipedia-only build, so a fresh clone that has never copied a catalogue
     across still gets a working one, and the last name in the list is what the
@@ -732,7 +827,7 @@ def catalog_terms(query):
     # rather than a row offset so that how big one is stays this file's
     # business alone — CATALOG_LIMIT above — and the page asking never has to
     # know the number, only that it wants the next one. Six digits is 20
-    # million rows past the end of a catalogue of 14,944; beyond that the
+    # million rows past the end of a catalogue of 14,349; beyond that the
     # request is a typo rather than a search.
     text = first("page")
     if text:
@@ -782,6 +877,10 @@ class Handler(SimpleHTTPRequestHandler):
         catalog = CATALOG_API.match(path)
         if catalog:
             return self._catalog_get(catalog.group(1))
+
+        thumb = CATALOG_THUMB.match(path)
+        if thumb:
+            return self._thumb_get(int(thumb.group(1)))
 
         photo = PHOTO_FILE.match(path)
         if photo:
@@ -899,6 +998,48 @@ class Handler(SimpleHTTPRequestHandler):
             return self._send_json(200, self.catalog.search(terms))
         except sqlite3.Error as exc:
             return self._fail(500, "Cannot read the catalogue: %s" % exc)
+
+    def _thumb_get(self, page_id):
+        thumbs = self.catalog.thumbs if self.catalog else None
+        if thumbs is None or not thumbs.available():
+            return self._fail(404, "No photos on this server")
+
+        # Asked for without its version, by a page that knows only the entry's
+        # id — a species of your own linked to it. Sent on to the address a
+        # search would have given, uncached, so the photo itself can still be
+        # cached for good and a new cut is still seen.
+        query = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+        if "v" not in query:
+            try:
+                url = thumbs.url(page_id)
+            except sqlite3.Error as exc:
+                return self._fail(500, "Cannot read the photos: %s" % exc)
+            if url is None:
+                return self._fail(404, "No photo for that entry")
+            self.send_response(302)
+            # Relative to this address, which is the same one with a ?v=.
+            self.send_header("Location", url.rsplit("/", 1)[1])
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+
+        try:
+            data = thumbs.jpeg(page_id)
+        except sqlite3.Error as exc:
+            return self._fail(500, "Cannot read the photos: %s" % exc)
+        if data is None:
+            return self._fail(404, "No photo for that entry")
+
+        self._own_cache = True
+        self.send_response(200)
+        self.send_header("Content-Type", "image/jpeg")
+        self.send_header("Content-Length", str(len(data)))
+        # Safe to cache for good: the URL carries ?v=, which changes with every
+        # new cut of the file (see `Thumbs._load`).
+        self.send_header("Cache-Control", "public, max-age=31536000, immutable")
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(data)
 
     # ---------- photos ----------
 
@@ -1018,12 +1159,15 @@ def main():
     catalog = args.catalog or pick_catalog(os.path.dirname(os.path.abspath(data)))
 
     Handler.store = Store(data)
-    Handler.catalog = Catalog(catalog)
+    thumbs = Thumbs(os.path.join(os.path.dirname(os.path.abspath(catalog)), THUMBS_NAME))
+    Handler.catalog = Catalog(catalog, thumbs)
     server = ThreadingHTTPServer((args.host, args.port), partial(Handler, directory=args.web))
 
     print("plants: http://%s:%d  web=%s  data=%s" % (args.host, args.port, args.web, data), flush=True)
     print("plants: catalogue %s (%s)" %
           (catalog, "ready" if Handler.catalog.available() else "not installed"), flush=True)
+    print("plants: photos %s (%s)" %
+          (thumbs.path, "ready" if thumbs.available() else "not installed"), flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

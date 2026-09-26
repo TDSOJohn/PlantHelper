@@ -82,7 +82,7 @@ function render() {
   if (path === '/seed/new') return renderSeedForm(null);
   if (path === '/catalog') return renderCatalog();
 
-  // The minus sign is part of the id, not a typo: the 9,879 catalogue
+  // The minus sign is part of the id, not a typo: the 9,284 catalogue
   // entries that came from pfaf.org or edibleplantdb.org rather than from an
   // article have no Wikipedia page id and carry a negative one instead, so a
   // pattern of digits alone would drop every one of them on the floor and
@@ -122,7 +122,7 @@ function render() {
    past the middle" does not.
 
    The catalogue's pages are not this size: the server slices those, because it
-   is the one holding 14,944 rows, and it names the size in every reply. So
+   is the one holding 14,349 rows, and it names the size in every reply. So
    this is the size of the two lists that live in the browser, and `drawPager`
    below is told a page count rather than working one out, so that both kinds
    can use it. */

@@ -49,6 +49,19 @@ function renderSpecies() {
     text.appendChild(sub);
 
     a.appendChild(text);
+    // The catalogue entry's photo, at the far end as it is in the catalogue.
+    // The row knows only the entry's id, not whether it has a photo — asking
+    // is the only way to find out, and a row whose entry has none, or a Pi
+    // that cannot be reached, loses the image rather than showing it broken.
+    if (record.catalogId) {
+      const thumb = document.createElement('img');
+      thumb.className = 'thumb';
+      thumb.src = CATALOG + '/' + encodeURIComponent(record.catalogId) + '/thumb';
+      thumb.alt = '';
+      thumb.loading = 'lazy';
+      thumb.onerror = () => thumb.remove();
+      a.appendChild(thumb);
+    }
     li.appendChild(a);
     ul.appendChild(li);
   }
@@ -71,11 +84,34 @@ function renderSpecies() {
  * button away rather than the page itself — a species is read far more often
  * than it is changed.
  */
+let speciesPhotoRun = 0;
+
 function renderSpeciesDetail(id) {
   const record = species.find((x) => x.id === id && !x.deletedAt);
   if (!record) {
     location.replace('#/species');   // no history entry for a species that is gone
     return;
+  }
+
+  // The catalogue entry's photo, with its credit, on a species filled in from
+  // one. Fetched rather than stored on the record: the credit is the
+  // photographer's and is the source's to change, and a species you keep is
+  // yours. The rest of the page is drawn meanwhile, and without the Pi it is
+  // simply drawn without a photo.
+  const figure = $('#sd-photo');
+  figure.hidden = true;
+  const run = ++speciesPhotoRun;
+  if (record.catalogId) {
+    catalogRequest('/' + encodeURIComponent(record.catalogId)).then((entry) => {
+      if (run !== speciesPhotoRun || !entry.thumb || !entry.photo) return;
+      const img = $('#sd-photo img');
+      img.src = entry.thumb;
+      img.width = entry.photo.width;
+      img.height = entry.photo.height;
+      img.alt = record.name;
+      $('#sd-photo figcaption').textContent = photoCredit(entry.photo);
+      figure.hidden = false;
+    }).catch(() => {});
   }
 
   $('#sd-name').textContent = record.name;

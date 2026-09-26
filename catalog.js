@@ -3,12 +3,12 @@
 /* =========================================================================
    The reference catalogue
 
-   14,944 species sitting in a SQLite file on the Pi, out of three sources:
+   14,349 species sitting in a SQLite file on the Pi, out of three sources:
    5,065 mined from the English Wikipedia dump, 7,161 with a pfaf.org page,
-   and 4,344 with one on edibleplantdb.org, overlapping on 1,578 plants that
+   and 3,751 with one on edibleplantdb.org, overlapping on 1,580 plants that
    two or three of them describe. pfaf.org states soil, shade and hardiness
    outright where an encyclopedia had to be read for them; edibleplantdb.org
-   mostly restates pfaf in prose, and earns its place with the 3,850 plants
+   mostly restates pfaf in prose, and earns its place with the 3,255 plants
    neither of the others lists and the synonyms it knows the rest by.
 
    It is searched there rather than held here: an encyclopedia has no business
@@ -76,6 +76,30 @@ function fillMarks(node, entry) {
    to work out. They say where the figures came from and nothing about whether
    there is an article to read: most plants no article was mined for have been
    matched to one since, and the link says that. */
+/* Where a catalogue photo came from, by how plants_db spells it, and how its
+   licence is written out. The credit is the photographer's line as the source
+   captioned it, which on iNaturalist names the licence already and on GBIF
+   and Wikimedia usually does not. */
+const PHOTO_SOURCE = { iNaturalist: 'iNaturalist', gbif: 'GBIF',
+  wikimedia: 'Wikimedia Commons', Wikipedia: 'Wikipedia' };
+
+const licenceText = (licence) => licence === 'pd' ? 'public domain'
+  : licence.toUpperCase().replace(/^CC-/, 'CC ');
+
+/**
+ * The line under a catalogue photo. Every licence but CC0 and public domain
+ * requires the credit shown beside the picture, so it always is; the licence
+ * and the source are added unless the credit already says them.
+ */
+function photoCredit(photo) {
+  const credit = photo.credit || '';
+  const has = (words) => credit.toLowerCase().includes(words.toLowerCase());
+  const licence = licenceText(photo.licence);
+  const source = PHOTO_SOURCE[photo.source] || photo.source;
+  return [credit, has(licence) ? '' : licence, has(source) ? '' : 'via ' + source]
+    .filter(Boolean).join(' · ');
+}
+
 const CATALOG_SOURCE = {
   'enwiki+pfaf': 'filled out from pfaf.org',
   'enwiki+epdb': 'filled out from edibleplantdb.org',
@@ -419,6 +443,17 @@ function catalogRow(entry) {
   if (marks.length) text.appendChild(row);
 
   a.appendChild(text);
+  // At the far end rather than leading, as a plant's own photo does: a third
+  // of the catalogue has none, and a photo in front would set every name that
+  // has one further in than the names either side of it.
+  if (entry.thumb) {
+    const thumb = document.createElement('img');
+    thumb.className = 'thumb';
+    thumb.src = entry.thumb;
+    thumb.alt = '';
+    thumb.loading = 'lazy';
+    a.appendChild(thumb);
+  }
   li.appendChild(a);
   return li;
 }
@@ -441,6 +476,9 @@ async function renderCatalogEntry(pageId) {
                   '#c-zone', '#c-drought', '#c-weedy', '#c-flags', '#c-ratings',
                   '#c-uses', '#c-notes', '#c-lead', '#c-meta'];
   for (const sel of fields) $(sel).textContent = '';
+  const figure = $('#c-photo');
+  figure.hidden = true;
+  $('#c-photo img').removeAttribute('src');
 
   $('#c-add').textContent = 'Add as a species';
 
@@ -456,6 +494,19 @@ async function renderCatalogEntry(pageId) {
   }
   if (mine !== catalogRun) return;
 
+  // Shown at the size it was cut, not stretched to the width of the page: at
+  // 160 px it is a thumbnail, and blown up to a plant's own photo it would
+  // look like a blurred one.
+  if (entry.thumb && entry.photo) {
+    const img = $('#c-photo img');
+    img.src = entry.thumb;
+    img.width = entry.photo.width;
+    img.height = entry.photo.height;
+    img.alt = entry.title;
+    $('#c-photo figcaption').textContent = photoCredit(entry.photo);
+    figure.hidden = false;
+  }
+
   $('#c-title').textContent = entry.title;
   $('#c-binomial').textContent =
     [entry.binomial !== entry.title ? entry.binomial : '', entry.genus]
@@ -463,7 +514,7 @@ async function renderCatalogEntry(pageId) {
 
   fill($('#c-temp'), tempText(entry), 'Not recorded');
   // A minimum read off a hardiness zone is a coarser figure than one an editor
-  // wrote in a sentence, and 6,515 of the entries have one.
+  // wrote in a sentence, and 6,525 of the entries have one.
   const zoned = $('#c-temp-from');
   zoned.hidden = !entry.fromZone;
   zoned.textContent = entry.fromZone ? 'from a zone' : '';
@@ -473,10 +524,10 @@ async function renderCatalogEntry(pageId) {
   fill($('#c-ph'), ph && 'pH ' + ph, 'Not recorded');
   // The same warning, for the same reason. pfaf.org states soil as named
   // bands rather than numbers and edibleplantdb.org repeats those bands in
-  // prose, so 8,087 of the 8,499 entries that carry a pH carry the edges of a
+  // prose, so 7,480 of the 7,895 entries that carry a pH carry the edges of a
   // band somebody named — 6.0-8.5 is "mildly acid to mildly alkaline" and not
   // a figure anyone measured. There are seven such pairs in the whole
-  // catalogue against 114 written out by hand, which is the shape of a
+  // catalogue against 115 written out by hand, which is the shape of a
   // vocabulary rather than of a measurement.
   const banded = $('#c-ph-from');
   banded.hidden = !entry.phFromBands;
@@ -525,7 +576,7 @@ async function renderCatalogEntry(pageId) {
 
   // The link is a column of its own rather than built from the id, because
   // most of those negative ids have an article after all: plants_db matched
-  // 7,154 of them to one by name, and their lead is that article's too. A
+  // 6,699 of them to one by name, and their lead is that article's too. A
   // `genus` or `species` match is an article about something broader than
   // this plant, so the button says so rather than promising the plant itself.
   const wiki = $('#c-wiki');

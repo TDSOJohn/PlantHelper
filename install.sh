@@ -69,6 +69,17 @@ for name in plants.export.sqlite plants.full.sqlite plants.sqlite; do
   break
 done
 
+# The catalogue's photos, where a copy has been made: 51 MB cut by plants_db's
+# thumbs.py, and like the full builds never in the repo — most are CC BY-NC.
+# Without it the catalogue works as it did before it had any. Staged for the
+# same reason as the catalogue.
+if [ -f "$SRC/data/plants.thumbs.sqlite" ]; then
+  echo "installing the catalogue photos into $DATA_DIR"
+  install -m 640 -o "$SERVICE_USER" -g "$SERVICE_USER" \
+    "$SRC/data/plants.thumbs.sqlite" "$DATA_DIR/plants.thumbs.sqlite.new"
+  mv "$DATA_DIR/plants.thumbs.sqlite.new" "$DATA_DIR/plants.thumbs.sqlite"
+fi
+
 echo "installing the service"
 sed -e "s|@APP_DIR@|$APP_DIR|g" \
     -e "s|@DATA_DIR@|$DATA_DIR|g" \

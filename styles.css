@@ -310,6 +310,19 @@ main {
   background: var(--card);
 }
 
+/* A catalogue photo, at the 160 px it was cut rather than the width a plant's
+   own photo gets. */
+.c-photo { margin: 0 auto 20px; max-width: 320px; text-align: center; }
+.c-photo img {
+  display: block;
+  margin: 0 auto 6px;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius);
+  background: var(--card);
+}
+.c-photo figcaption { color: var(--ink-dim); font-size: 12px; line-height: 1.4; }
+
 .detail h2 {
   margin: 0 0 20px;
   font-size: 26px;
