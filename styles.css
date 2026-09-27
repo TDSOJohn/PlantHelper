@@ -223,15 +223,16 @@ main {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.list .sub.late { color: var(--danger); font-weight: 600; }
+.list .sub.late,
+.list .sub.poor { color: var(--danger); font-weight: 600; }
+.list .sub.good { color: var(--accent); font-weight: 600; }
 
-/* A sowing group: the same card as a row, as a button, because it opens in
+/* A species group: the same card as a row, as a button, because it opens in
    place rather than going anywhere. The li has to wrap so that the plants
-   inside it land underneath rather than beside — the row itself is a flex line
-   holding the card and, on today's list, the ✓ beside it. */
+   inside it land underneath rather than beside. */
 .list li.grouped { flex-wrap: wrap; }
 
-.list .group {
+.list .fold {
   flex: 1;
   min-width: 0;
   display: flex;
@@ -246,7 +247,7 @@ main {
   text-align: left;
   cursor: pointer;
 }
-.list .group:active { border-color: var(--accent); }
+.list .fold:active { border-color: var(--accent); }
 
 /* The triangle carries the open-or-shut on its own, so it is sized like the
    text rather than like an icon and dimmed to stay out of the name's way. */
@@ -259,10 +260,11 @@ main {
 
 /* The plants inside, once it is open. Full width so it wraps under the row,
    and indented to the depth of the triangle plus its gap, which lines the
-   names up under the group's own. */
+   names up under the group's own. No margin: the li's own gap already spaces
+   it like the rows around it. */
 .list .nested {
   flex-basis: 100%;
-  margin: 8px 0 0;
+  margin: 0;
   padding-left: 24px;
 }
 
@@ -311,8 +313,16 @@ main {
 }
 
 /* A catalogue photo, at the 160 px it was cut rather than the width a plant's
-   own photo gets. */
-.c-photo { margin: 0 auto 20px; max-width: 320px; text-align: center; }
+   own photo gets. It sits in a right-hand column beside the name, so the facts
+   start on the first screen instead of under a picture; the facts card clears
+   whichever of the two runs longer. */
+.c-photo {
+  float: right;
+  width: 40%;
+  margin: 0 0 16px 16px;
+  text-align: center;
+}
+.detail .facts { clear: both; }
 .c-photo img {
   display: block;
   margin: 0 auto 6px;

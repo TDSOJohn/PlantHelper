@@ -8,7 +8,24 @@
 #
 # Re-running it is safe: it updates the app, refreshes the reference catalogue
 # if the repo carries one, and never touches your plant list.
+#
+# Unless you ask it to. When a change to the app needs the plant list in a new
+# shape, the release says so and you install it with:
+#
+#     sudo ./install.sh --migrate
+#
+# which stops the service, runs migrate.py over plants.json (keeping a copy of
+# the old file in backups/), and starts it again. Running it when nothing needs
+# migrating changes nothing.
 set -eu
+
+MIGRATE=no
+for arg in "$@"; do
+  case $arg in
+    --migrate) MIGRATE=yes ;;
+    *) echo "usage: sudo ./install.sh [--migrate]" >&2; exit 2 ;;
+  esac
+done
 
 APP_DIR=${APP_DIR:-/opt/plants}
 DATA_DIR=${DATA_DIR:-/var/lib/plants}
@@ -78,6 +95,21 @@ if [ -f "$SRC/data/plants.thumbs.sqlite" ]; then
   install -m 640 -o "$SERVICE_USER" -g "$SERVICE_USER" \
     "$SRC/data/plants.thumbs.sqlite" "$DATA_DIR/plants.thumbs.sqlite.new"
   mv "$DATA_DIR/plants.thumbs.sqlite.new" "$DATA_DIR/plants.thumbs.sqlite"
+fi
+
+# Stopped rather than raced: the server writes plants.json on every sync, and
+# a phone syncing mid-migration would have its write replaced by the migrated
+# file or the other way round. The restart below starts it again.
+if [ "$MIGRATE" = yes ] && [ -f "$DATA_DIR/plants.json" ]; then
+  echo "migrating $DATA_DIR/plants.json"
+  systemctl stop plants 2>/dev/null || true
+  # A failed migration leaves the file as it was, so the service goes back up
+  # rather than staying down until somebody notices.
+  if ! python3 "$SRC/migrate.py" "$DATA_DIR/plants.json"; then
+    echo "The migration failed; plants.json is unchanged." >&2
+    systemctl start plants 2>/dev/null || true
+    exit 1
+  fi
 fi
 
 echo "installing the service"

@@ -46,6 +46,7 @@ views.js  species.js  seeds.js  the screens
 catalog.js                      the reference catalogue screens
 server.py                       static files, /api/plants, photos
 plants.service  install.sh      run it under systemd
+migrate.py                      bring plants.json up to date (install.sh --migrate)
 data/plants.sqlite              the reference catalogue
 data/plants.export.sqlite       the same, plus pfaf.org and edibleplantdb.org
 data/plants.full.sqlite         the same again, plus both raw crawls
@@ -85,11 +86,6 @@ you have not looked at since yesterday.
 day's germinations, and a day that fills two pages is a day you want to see the
 whole of; the sowings list is the sowings you have going, which is a number
 that stays small on its own.
-
-Both lists of plants are shortened before they are paged, in the other way a
-list of plants gets long: plants potted up from the same sowing fold into
-[one row](#one-tray-one-row) with a count on it, and page 2 arrives twenty
-*rows* in rather than twenty plants.
 
 ## Name and species
 
@@ -144,9 +140,23 @@ name and nothing else, so filling this in, changing it or clearing it can never
 move a plant from one species to another. That is what keeps it safe to treat
 as a scribble.
 
-It shows in two places: under the binomial on the species' own page, and at the
+It shows in three places: under the binomial on the species' own page, at the
 front of its row in the species list, which is the list it is there to make
-readable. A species you have not filled it in for looks exactly as it did.
+readable, and as the title of the species' group on **All plants** (below). A
+species you have not filled it in for goes by its binomial.
+
+### Grouped on All plants
+
+Two or more plants following the same species fold into one row on **All
+plants**: the species' name, how many plants, the place and schedule where they
+all agree, and the watering status of whichever plant most wants water, so a
+group with one plant late reads as late. Tap it to open the plants inside;
+it stays open while the app is running. A species with a single plant, and a
+plant with no species, stay ordinary rows. Nothing is stored for this; the
+pager counts a group as one row.
+
+**Today** is not grouped. Its ✓ waters one plant, and a ✓ on a group would
+water plants that are not due.
 
 ### The species page
 
@@ -737,89 +747,19 @@ The one button left is **Pot up as plants**, because it does not move a tally,
 it makes things. The seedlings become ordinary plants, one each, already
 following the sowing's species and so inheriting its conditions and its
 watering schedule. They are numbered (*Ocimum basilicum 1*, *2*, *3*) when the
-sowing has produced more than one, and each keeps a link back to the sowing it
-came from. Rename them as you like afterwards.
+sowing has produced more than one, carrying on from the last number the sowing
+gave out. Rename them as you like afterwards.
 
-That link is what the next two sections are about: it is why four seedlings out
-of one tray are one row on your lists rather than four, and why they all want
-water on the same day whichever day each of them was potted.
-
-### One tray, one row
-
-Two or more plants still standing from the same sowing draw a **single row** on
-**All plants** and on **Today**, with the count on it and a ▸ to open it in
-place:
-
-```
-▸ Ocimum basilicum · 4 plants · Every 3 days · 2 days late     [✓]
-```
-
-Opening it lists the plants, indented, each still its own row with its own link
-and its own ✓ — a group is a way of folding the list up, not a different kind
-of thing to water. The ✓ on the group itself waters all four, in one go, which
-is how they are watered in life. It is one write and one sync rather than four.
-
-On **Today** a sowing arrives **whole**. The list is otherwise exactly the
-plants that want water, but where one of the four is due the other three come
-with it, and the ✓ waters the tray. That is the only way a tray that has fallen
-out of step gets back into it: water the three that are due today and the
-fourth tomorrow, and they are a day apart for ever. A tray with nothing due is
-not on the list at all.
-
-The threshold is two. A single potted seedling is a plant, and hiding it behind
-a disclosure that reads *1 plant* would be a row and a tap in exchange for
-nothing.
-
-The row says what its most urgent plant says, so it reads like the row it
-replaces — *2 days late* on a group means at least one of them is. What it will
-not do is speak for the group where the group does not agree: put half the tray
-outside, or give one seedling an interval of its own, and the place or the
-schedule simply drops off the row rather than being asserted for all four. Open
-it and each plant says its own.
-
-Groups are not stored anywhere. A group is what you get when you look at the
-plants and notice that some of them came out of the same tray, which was
-already true before anything drew it — so nothing has to be kept in step, and
-deleting the sowing record leaves you with four ordinary plants.
-
-### Watering from the sow date
-
-A potted-up seedling's *every N days* counts from **the day the tray was sown**,
-not from the day that particular seedling was moved into a pot, with every
-cycle that came round before the potting skipped.
-
-Sow on the 1st, every 3 days, pot one up on the 8th: the cycles fell on the
-4th and the 7th while it was still in the tray, so its first watering is the
-**10th**. A sibling potted on the 9th also lands on the 10th. That is the whole
-point — the day a particular seedling was moved is not a fact anybody records,
-and it should not be the thing that decides when it is watered.
-
-A boundary landing on the potting day itself is skipped with the rest, because
-you have just watered the thing in. It is the rule a new plant already follows:
-the clock starts today, and the first watering is N days off.
-
-After that first watering nothing is special about them: the clock runs from
-the last watering, as it does for every plant. Water the group together — one
-tap on its ✓ — and it stays together; water it two days late and all four move
-two days, together.
-
-Like the groups, none of this is written down. The anchor is worked out on the
-way past, so seedlings potted up before this existed are on their sowing's
-rhythm without anything being migrated, changing the species' interval takes
-its plants with it, and the moment a plant is watered or given a schedule of
-its own the sowing stops having anything to say about it.
-
-That last clause is what to expect of a tray potted up before any of this
-existed. Its plants land on the sowing's rhythm — every one of them on the same
-three-day grid — but not necessarily on the same *day* of it: one potted a week
-ago and one potted yesterday sit at different points on that grid, and one that
-has already been watered sits wherever its last watering left it, because the
-last watering is what an interval counts from. Watering the tray once, from the
-✓ on its row, is what brings them together; after that they move as one.
+The plants are **not linked back** to the sowing. The sowing keeps a count of
+how many it has potted up, and that is all: a plant given away or lost is
+simply deleted, and the sowing's figures stay as they were — the seedling did
+come up, and it did leave the tray. The plants themselves are ordinary plants
+from the moment they exist, each on its own row and its own watering clock,
+which starts the day it was potted.
 
 Potting up takes from the seedlings box first — those came up once and must not
 be counted twice — and only what is left over from the seeds still under the
-soil. Plants standing are shown beside the box rather than in it (*4* · *+ 2
+soil. Those potted up are shown beside the box rather than in it (*4* · *+ 2
 potted up*), since typing a zero over a plant cannot be what you meant: the
 plant is out there, in a pot, being watered.
 
@@ -884,9 +824,6 @@ Two things worth knowing:
 - **Missing a weekday schedule does not carry over.** If a Monday plant is not
   watered on Monday, it is simply not due on Tuesday. That is what picking
   weekdays means; use an interval if you want lateness tracked.
-- **A plant potted up from a sowing counts from the sow date instead**, so that
-  a tray potted up over a fortnight still wants water all on the same day. See
-  [watering from the sow date](#watering-from-the-sow-date).
 
 The free-text watering note is still there, for the things a schedule cannot
 express — *less in winter*, *let the soil dry out*.
@@ -1093,7 +1030,7 @@ APP_DIR=/opt/plants DATA_DIR=/var/lib/plants PORT=80 sudo -E ./install.sh
 ```
 
 Re-running it updates the app, refreshes the catalogue and restarts the
-service; it never touches your plant list.
+service; it never touches your plant list unless you pass `--migrate`.
 
 `install.sh` places the catalogue too, taking `data/plants.export.sqlite` or
 `data/plants.full.sqlite` where you have copied one across and
@@ -1146,6 +1083,30 @@ echo -e '[connection]\nwifi.powersave = 2' | \
 
 (On an older Pi OS release that still uses `dhcpcd` rather than NetworkManager,
 put the `iw` command in `/etc/rc.local` instead.)
+
+### Migrating
+
+Now and then a change to the app needs the plant list in a new shape. When it
+does, install that version with:
+
+```sh
+sudo ./install.sh --migrate
+```
+
+That stops the service, runs `migrate.py` over `/var/lib/plants/plants.json`,
+and starts the service again with the new app. The old file is kept as
+`backups/pre-migrate-<date>-<time>.json.bak`, a name the daily pruning leaves
+alone. If the migration fails the file is untouched and the service is started
+again anyway.
+
+Each migration in `migrate.py` looks at the data rather than at a version
+number, and changes only records still in the old shape, so `--migrate` on a
+list that is already up to date changes nothing. Every record it does change
+gets a fresh `updatedAt`, which is what makes a phone holding the old shape
+take the new one on its next sync rather than pushing the old one back.
+
+A new migration is a function taking the document and the time, returning how
+many records it changed, appended to `MIGRATIONS`.
 
 ### Everyday commands
 
@@ -1272,7 +1233,6 @@ usual on an SD card. Prefer `sudo shutdown -h now` over pulling the plug.
       "id": "k9j8h7-a1b2c3",
       "name": "Basil 1",
       "species": "Ocimum basilicum",
-      "sowingId": "sw-4c5d6e",
       "place": "outside",
       "temps": { "avgMin": 15 },
       "humidity": null,
@@ -1295,6 +1255,7 @@ usual on an SD card. Prefer `sudo shutdown -h now` over pulling the plug.
       "days": 7,
       "sprouted": 4,
       "dead": 3,
+      "potted": 2,
       "notes": "Windowsill propagator.",
       "createdAt": "2026-08-12T09:00:00Z",
       "updatedAt": "2026-08-19T10:00:00Z"
@@ -1338,9 +1299,8 @@ A **sowing** is a third list of the same shape, and the three are merged by the
 same code on both ends. `count` is how many seeds went in; `sprouted` and
 `dead` are running tallies, and *still trying* is the remainder — there is no
 status field, and no key for it. `sprouted` is everything that came up, potted
-or not, so the seedlings box on screen is `sprouted` less the plants carrying
-this sowing's id: the plants are the record of themselves, and storing them
-twice would let the two copies disagree. They are clamped against `count` when read
+or not, and `potted` is how many of those were potted up as plants, so the
+seedlings box on screen is `sprouted` less `potted`. They are clamped against `count` when read
 rather than trusted, because two phones that both potted up the last seedling
 would otherwise merge into a sowing claiming more seedlings than seeds.
 `days` is `null` or absent when no germination time was given, which is what
@@ -1349,9 +1309,9 @@ keeps a sowing off *Seeds due*; `sownOn` is a local date like `lastWatered`.
 only a `species` name is matched by that name too, so a tray sown before the
 species record existed joins it as soon as there is one.
 
-`sowingId` on a plant is the sowing it was potted up from. Nothing else about a
-plant reads it — it is what puts the plant under *Plants from this sowing*, and
-it is absent on every plant that was not grown from seed here.
+Plants potted up before `potted` existed carried a `sowingId` instead, and the
+sowing counted them. `install.sh --migrate` turns that into the count on the
+sowing and takes the ids off the plants; see [migrating](#migrating).
 
 A deleted plant keeps its entry with a `deletedAt` timestamp, so that a phone
 that was offline during the delete cannot bring it back. Species and sowings

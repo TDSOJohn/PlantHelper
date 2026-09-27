@@ -13,6 +13,7 @@
      count      how many seeds went in
      sprouted   how many have come up since
      dead       how many rotted, or never came
+     potted     how many of those that came up have been potted up as plants
      days       what the packet promises, so the app knows when to ask
 
    Still trying is what is left: count - sprouted - dead. A sowing is finished
@@ -22,8 +23,9 @@
 
    Sowings are a third list beside plants and species, of exactly the same
    shape — id, updatedAt, a deletedAt tombstone — and are merged by the same
-   code on both ends. Potting one up creates ordinary plants, linked back by
-   `sowingId`; nothing else about a plant knows or cares where it came from.
+   code on both ends. Potting one up creates ordinary plants and adds them to
+   `potted`; the plants are not linked back, so giving one away or losing it
+   is deleting a plant and leaves the sowing's figures as they were.
    ========================================================================= */
 
 const liveSowings = () => sowings.filter((s) => !s.deletedAt);
@@ -47,6 +49,9 @@ function tally(sowing) {
   const dead = Math.min(whole(sowing.dead), sown - up);
   return { sown: sown, up: up, dead: dead, trying: sown - up - dead };
 }
+
+/** How many seedlings have left the tray as plants, never more than came up. */
+const pottedOf = (sowing) => Math.min(whole(sowing.potted), tally(sowing).up);
 
 /** The running total across several sowings, in the same shape. */
 const sumTallies = (list) =>
@@ -267,7 +272,11 @@ function sowingRow(sowing, today) {
 
   const t = tally(sowing);
   const sub = document.createElement('div');
-  sub.className = 'sub' + (sowingLate(sowing, today) > 0 ? ' late' : '');
+  // A finished sowing can no longer be late, only have gone well or badly:
+  // green when at least half came up, red when fewer did.
+  const tone = t.sown && t.trying < 1 ? (t.up * 2 >= t.sown ? ' good' : ' poor')
+    : sowingLate(sowing, today) > 0 ? ' late' : '';
+  sub.className = 'sub' + tone;
   sub.textContent = [t.sown + (t.sown === 1 ? ' seed' : ' seeds'),
                      sowingStatus(sowing, today)].filter(Boolean).join(' · ');
   text.appendChild(sub);
@@ -351,11 +360,10 @@ function renderSeedDetail(id) {
     : '', 'No germination time given');
   expectedVal.classList.toggle('late', t.trying > 0 && late > 0);
 
-  // Plants standing are seedlings that cannot be typed away, so they are
-  // counted apart from the box and shown beside it: 4 + 2 potted is what
-  // makes the six that came up add up against the rest of the tray.
-  const mine = live().filter((p) => p.sowingId === sowing.id).sort(byName);
-  const potted = mine.length;
+  // Potted-up seedlings are counted apart from the box and shown beside it:
+  // 4 + 2 potted is what makes the six that came up add up against the rest
+  // of the tray.
+  const potted = pottedOf(sowing);
 
   complain('#q-count-error', '');
   complain('#q-pot-error', '');
@@ -392,17 +400,12 @@ function renderSeedDetail(id) {
 
   fill($('#q-notes'), sowing.notes, 'No notes');
 
-  const ul = $('#q-plants');
-  ul.textContent = '';
-  for (const plant of mine) ul.appendChild(plantRow(plant, today, false));
-  $('#q-plants-heading').hidden = !mine.length;
-
   $('#q-meta').textContent = sowing.createdAt ? 'Recorded ' + fmtDate(sowing.createdAt) : '';
 
   $('#q-edit').href = '#/seed/' + encodeURIComponent(sowing.id) + '/edit';
   $('#q-delete').onclick = () => {
     if (!confirm(`Delete this sowing of ${sowingName(sowing)}?` +
-                 (mine.length ? ' The plants it produced are kept.' : ''))) return;
+                 (potted ? ' The plants it produced are kept.' : ''))) return;
     sowing.deletedAt = new Date().toISOString();
     sowing.updatedAt = sowing.deletedAt;
     commit();
@@ -437,15 +440,12 @@ function setTally(box, n, max) {
   if (document.activeElement !== box) box.value = n;
 }
 
-/** How many plants this sowing has produced and still has standing. */
-const pottedFrom = (sowing) => live().filter((p) => p.sowingId === sowing.id).length;
-
 /**
  * Takes one of the two tallies as typed.
  *
  * `which` is 'up' for the seedlings box, which holds only the ones that have
- * not been potted up: plants are seedlings the tray has already accounted
- * for, and typing 0 over them would lose the fact that they ever came up.
+ * not been potted up: those the tray has already accounted for, and typing 0
+ * over them would lose the fact that they ever came up.
  * The stored figure stays the whole of what came up, potted or not.
  */
 function editTally(id, which) {
@@ -454,10 +454,10 @@ function editTally(id, which) {
 
   const box = $(which === 'dead' ? '#q-dead' : '#q-sprouted');
   const t = tally(sowing);
-  const potted = pottedFrom(sowing);
+  const potted = pottedOf(sowing);
 
   // Everything this box is not allowed to spend: the other tally, and, for
-  // the seedlings box, the plants standing in the ground.
+  // the seedlings box, the ones already potted up.
   const room = t.sown - (which === 'dead' ? t.up : potted + t.dead);
   const n = Math.floor(Number(String(box.value).trim()));
 
@@ -488,7 +488,7 @@ function potUp(sowing, n) {
   const parent = sowingSpecies(sowing);
   const speciesName = (parent && parent.name) || sowing.species || '';
   const base = speciesName || 'Seedling';
-  const existing = pottedFrom(sowing);
+  const existing = pottedOf(sowing);
   const now = new Date().toISOString();
 
   for (let i = 0; i < n; i++) {
@@ -497,7 +497,6 @@ function potUp(sowing, n) {
       name: existing + n > 1 ? base + ' ' + (existing + i + 1) : base,
       species: speciesName,
       speciesId: parent ? parent.id : '',
-      sowingId: sowing.id,
       place: '',
       temps: null, humidity: null, ph: null, light: null,
       schedule: null,
@@ -520,7 +519,7 @@ function potUpSome(id, raw) {
   if (!sowing) return;
 
   const t = tally(sowing);
-  const potted = pottedFrom(sowing);
+  const potted = pottedOf(sowing);
   const room = t.sown - potted - t.dead;
   const n = Math.floor(Number(String(raw).trim()));
 
@@ -535,6 +534,7 @@ function potUpSome(id, raw) {
   complain('#q-pot-error', '');
   potUp(sowing, n);
   sowing.sprouted = Math.max(t.up, potted + n);
+  sowing.potted = potted + n;
   sowing.updatedAt = new Date().toISOString();
   commit();
   setStatus(n === 1 ? 'Potted up 1 seedling.' : 'Potted up ' + n + ' seedlings.', false);
@@ -659,7 +659,7 @@ function renderSeedForm(id) {
     if (sowing) {
       Object.assign(sowing, fields);
     } else {
-      saved = Object.assign({ id: uid(), sprouted: 0, dead: 0, createdAt: now }, fields);
+      saved = Object.assign({ id: uid(), sprouted: 0, dead: 0, potted: 0, createdAt: now }, fields);
       sowings.push(saved);
     }
 

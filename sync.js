@@ -244,7 +244,7 @@ function markWatered(id) {
 }
 
 /**
- * Tick off several plants at once — what the ✓ on a sowing group does.
+ * Tick off several plants at once.
  *
  * One `commit`, not one per plant: commit writes localStorage and starts a
  * sync, and four of those for one tap on one watering can is three too many.
