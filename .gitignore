@@ -5,3 +5,6 @@ __pycache__/
 # grants no reuse licence. See "Three catalogues" in the README.
 data/plants.full.sqlite
 data/plants.export.sqlite
+# The catalogue's thumbnails, from edibleplantdb.org's photos. Most are CC
+# BY-NC and each needs its credit shown, so they travel like the builds above.
+data/plants.thumbs.sqlite
