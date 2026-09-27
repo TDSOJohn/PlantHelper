@@ -117,8 +117,11 @@ function showPhotos(hero, photos, alt) {
     if (i > 0) img.loading = 'lazy';
     return img;
   }));
-  strip.scrollLeft = 0;
   hero.classList.toggle('has-photo', photos.length > 0);
+  // Back to the first photo only once the strip is shown again: set while it
+  // is hidden, as it is between one entry and the next, the browser ignores
+  // it and puts back wherever the last entry was left.
+  strip.scrollLeft = 0;
   count.hidden = photos.length < 2;
 
   const current = () => {
