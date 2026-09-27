@@ -100,6 +100,37 @@ function photoCredit(photo) {
     .filter(Boolean).join(' · ');
 }
 
+/**
+ * Fill a page's header with an entry's photos, best first: a strip swiped
+ * sideways a photo at a time, under the name. The credit and the count follow
+ * whichever photo is showing, so the credit is always the one beside it. No
+ * photos leaves the plain heading. Past the first they load as they come near.
+ */
+function showPhotos(hero, photos, alt) {
+  const strip = hero.querySelector('.hero-strip');
+  const caption = hero.querySelector('figcaption');
+  const count = hero.querySelector('.hero-count');
+  strip.replaceChildren(...photos.map((photo, i) => {
+    const img = document.createElement('img');
+    img.src = photo.url;
+    img.alt = i === 0 ? alt : '';
+    if (i > 0) img.loading = 'lazy';
+    return img;
+  }));
+  strip.scrollLeft = 0;
+  hero.classList.toggle('has-photo', photos.length > 0);
+  count.hidden = photos.length < 2;
+
+  const current = () => {
+    const i = Math.min(photos.length - 1,
+                       Math.round(strip.scrollLeft / (strip.clientWidth || 1)));
+    caption.textContent = photos.length ? photoCredit(photos[i]) : '';
+    count.textContent = (i + 1) + ' / ' + photos.length;
+  };
+  strip.onscroll = current;
+  current();
+}
+
 const CATALOG_SOURCE = {
   'enwiki+pfaf': 'filled out from pfaf.org',
   'enwiki+epdb': 'filled out from edibleplantdb.org',
@@ -476,9 +507,7 @@ async function renderCatalogEntry(pageId) {
                   '#c-zone', '#c-drought', '#c-weedy', '#c-flags', '#c-ratings',
                   '#c-uses', '#c-notes', '#c-lead', '#c-meta'];
   for (const sel of fields) $(sel).textContent = '';
-  const figure = $('#c-photo');
-  figure.hidden = true;
-  $('#c-photo img').removeAttribute('src');
+  showPhotos($('#c-photo'), [], '');
 
   $('#c-add').textContent = 'Add as a species';
 
@@ -494,18 +523,9 @@ async function renderCatalogEntry(pageId) {
   }
   if (mine !== catalogRun) return;
 
-  // Shown at the size it was cut, not stretched to the width of the page: at
-  // 160 px it is a thumbnail, and blown up to a plant's own photo it would
-  // look like a blurred one.
-  if (entry.thumb && entry.photo) {
-    const img = $('#c-photo img');
-    img.src = entry.thumb;
-    img.width = entry.photo.width;
-    img.height = entry.photo.height;
-    img.alt = entry.title;
-    $('#c-photo figcaption').textContent = photoCredit(entry.photo);
-    figure.hidden = false;
-  }
+  // Its photos across the page, at the 320 px they were cut for this rather
+  // than the 160 px thumbnail the list shows.
+  showPhotos($('#c-photo'), entry.photos || [], entry.title);
 
   $('#c-title').textContent = entry.title;
   $('#c-binomial').textContent =

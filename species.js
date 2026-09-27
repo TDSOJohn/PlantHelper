@@ -98,19 +98,12 @@ function renderSpeciesDetail(id) {
   // photographer's and is the source's to change, and a species you keep is
   // yours. The rest of the page is drawn meanwhile, and without the Pi it is
   // simply drawn without a photo.
-  const figure = $('#sd-photo');
-  figure.hidden = true;
+  showPhotos($('#sd-photo'), [], '');
   const run = ++speciesPhotoRun;
   if (record.catalogId) {
     catalogRequest('/' + encodeURIComponent(record.catalogId)).then((entry) => {
-      if (run !== speciesPhotoRun || !entry.thumb || !entry.photo) return;
-      const img = $('#sd-photo img');
-      img.src = entry.thumb;
-      img.width = entry.photo.width;
-      img.height = entry.photo.height;
-      img.alt = record.name;
-      $('#sd-photo figcaption').textContent = photoCredit(entry.photo);
-      figure.hidden = false;
+      if (run !== speciesPhotoRun) return;
+      showPhotos($('#sd-photo'), entry.photos || [], record.name);
     }).catch(() => {});
   }
 

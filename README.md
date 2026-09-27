@@ -50,7 +50,7 @@ migrate.py                      bring plants.json up to date (install.sh --migra
 data/plants.sqlite              the reference catalogue
 data/plants.export.sqlite       the same, plus pfaf.org and edibleplantdb.org
 data/plants.full.sqlite         the same again, plus both raw crawls
-data/plants.thumbs.sqlite       a photo for 9,480 of its entries
+data/plants.thumbs.sqlite       photos for 9,480 of its entries
 ```
 
 ## Long lists
@@ -452,12 +452,13 @@ installer takes whichever of the other two it finds regardless.
 
 ### Photos in the catalogue
 
-9,480 of the 14,349 entries have a photo: one per plant, cut to 160 px by
-`plants_db`'s `thumbs.py` out of edibleplantdb.org's galleries — 7,556 from
-iNaturalist, 1,483 from GBIF and the rest from Wikimedia Commons. They live in
-`data/plants.thumbs.sqlite`, a file of their own, because the catalogue is
-rebuilt whenever a rule in `plants_db` moves and the photos only when the ZIM
-does: at 51 MB they would more than quadruple the `scp` for every one of
+9,480 of the 14,349 entries have photos, cut by `plants_db`'s `thumbs.py` out
+of edibleplantdb.org's galleries — mostly from iNaturalist, then GBIF and
+Wikimedia Commons. Most have three, a few up to nine: 25,959 in all, at 320 px
+on the long edge, and the best of each again at 160 px for the lists. They
+live in `data/plants.thumbs.sqlite`, a file of their own, because the
+catalogue is rebuilt whenever a rule in `plants_db` moves and the photos only
+when the ZIM does: at 480 MB they would dwarf the `scp` for every one of
 those rebuilds. The gap is the houseplants. edibleplantdb.org is about eating
 plants and has never heard of most of them, so the 3,587 entries that only
 Wikipedia describes have 403 photos between them.
@@ -467,8 +468,11 @@ name as a plant of your own does. A third of the catalogue has none, and a
 photo in front would push every name that has one further in than the names
 either side of it; at the far end, the names all start at the same place.
 
-The entry page shows it at the size it was cut rather than the width a
-plant's own photo gets, and **always with its credit underneath** —
+The entry page — and a species filled in from it — opens with its photos
+across the page at 320 px, cropped to 4:3 and swiped sideways one at a time,
+best first, with a `1 / 3` in the corner where there is more than one. The
+name sits on a half-dark band over their foot, and each photo is **always
+shown with its credit underneath**, which changes as you swipe —
 *"(c) Tim Messick, some rights reserved (CC BY) · via iNaturalist"*. That line
 is not decoration. Every licence here but CC0 and public domain is granted on
 condition the credit is shown beside the picture, and 5,723 of the photos are
@@ -954,7 +958,8 @@ tokens, no CORS, no cloud account.
                   &aquatic=&pfaf=&edible=&medicinal=&otherUses=&page=
                                                 ->  one page of the catalogue
     GET    /api/catalog/<pageId>                ->  one entry in full
-    GET    /api/catalog/<pageId>/thumb          ->  its photo, a 160 px JPEG
+    GET    /api/catalog/<pageId>/thumb          ->  its best photo, a 160 px JPEG
+    GET    /api/catalog/<pageId>/photo/<rank>   ->  one of its photos, a 320 px JPEG
 
 A catalogue search answers with `{"total": …, "limit": 20, "page": 0,
 "coverage": {…}, "results": […]}`. `page` counts from nought and is the only

@@ -286,12 +286,16 @@
        into the form is a button rather than the whole page. -->
   <section id="view-species-detail" class="view" hidden>
     <div class="detail">
-      <!-- The linked catalogue entry's photo, credited as it is there. -->
-      <figure id="sd-photo" class="c-photo" hidden>
-        <img alt="">
+      <!-- The linked catalogue entry's photo, credited as it is there, with
+           the name over it; without one, only the name. -->
+      <figure id="sd-photo" class="hero">
+        <div class="hero-frame">
+          <div class="hero-strip"></div>
+          <h2 id="sd-name"></h2>
+          <span class="hero-count" hidden></span>
+        </div>
         <figcaption></figcaption>
       </figure>
-      <h2 id="sd-name"></h2>
       <p id="sd-known" class="meta" hidden></p>
 
       <div class="facts">
@@ -500,11 +504,14 @@
     <div class="detail">
       <!-- The credit is not optional: all but the CC0 and public-domain
            photos are licensed on condition it is shown beside them. -->
-      <figure id="c-photo" class="c-photo" hidden>
-        <img alt="">
+      <figure id="c-photo" class="hero">
+        <div class="hero-frame">
+          <div class="hero-strip"></div>
+          <h2 id="c-title"></h2>
+          <span class="hero-count" hidden></span>
+        </div>
         <figcaption></figcaption>
       </figure>
-      <h2 id="c-title"></h2>
       <p id="c-binomial" class="meta"></p>
 
       <div class="facts">

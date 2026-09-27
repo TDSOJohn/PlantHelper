@@ -18,6 +18,7 @@ Serves the static page, one JSON endpoint and the plant photos:
     GET    /api/catalog/<pageId>            ->  one entry in full
     GET    /api/catalog/<pageId>/thumb?v=   ->  its photo, a 160 px JPEG
                                                (no v: a redirect to the one with it)
+    GET    /api/catalog/<pageId>/photo/<rank>?v=  ->  one of its photos, 320 px
 
 A PUT to /api/plants is *merged* with what is already on disk rather than
 replacing it, so two phones that were both edited offline can sync in any order
@@ -50,6 +51,7 @@ PHOTO_FILE = re.compile(r"^/photos/([A-Za-z0-9_-]{1,64})\.jpg$")
 # the key, so the route has to accept it or those entries cannot be opened.
 CATALOG_API = re.compile(r"^/api/catalog(?:/(-?[0-9]{1,12}))?$")
 CATALOG_THUMB = re.compile(r"^/api/catalog/(-?[0-9]{1,12})/thumb$")
+CATALOG_PHOTO = re.compile(r"^/api/catalog/(-?[0-9]{1,12})/photo/([0-9]{1,3})$")
 
 # What a plant id has to look like before it is turned into a file name. The
 # two routes above get this from their own patterns; the sweep below needs it
@@ -619,11 +621,12 @@ class Catalog:
             record = self._shape(row, full=True)
             record["aliases"] = [r[0] for r in conn.execute(
                 "SELECT key FROM alias WHERE page_id = ? ORDER BY key", (page_id,))]
-            # Whose photo it is, which every licence but cc0 and pd requires
-            # shown beside it. Only here: a row in a list is a thumbnail
-            # leading to this page, and this page is where it is credited.
-            record["photo"] = (self.thumbs.credit(page_id)
-                               if record["thumb"] else None)
+            # Every photo of it at 320 px, best first, each with whose it is,
+            # which every licence but cc0 and pd requires shown beside it.
+            # Only here: a row in a list is a thumbnail leading to this page,
+            # and this page is where they are shown and credited.
+            record["photos"] = (self.thumbs.photos(page_id)
+                                if record["thumb"] else [])
             return record
         finally:
             conn.close()
@@ -676,18 +679,22 @@ class Catalog:
 
 
 class Thumbs:
-    """A photo for 9,480 of the catalogue's entries, from ../plants_db/thumbs.py.
+    """Photos for 9,480 of the catalogue's entries, from ../plants_db/thumbs.py.
 
     Cut from edibleplantdb.org's galleries, most of them iNaturalist uploads
-    and the rest GBIF — mostly herbarium sheets — and Wikimedia Commons: one
-    per `page_id`, 160 px on the long edge, with the source, licence and credit
-    each was captioned with. Every licence but cc0 and pd requires that credit
+    and the rest GBIF — mostly herbarium sheets — and Wikimedia Commons, with
+    the source, licence and credit each was captioned with. Two tables: `photo`
+    has every one at 320 px on the long edge, keyed by `(page_id, rank)`, for
+    the entry page; `thumb` has the rank-0 one again at 160 px, one per
+    `page_id`, for lists. Every licence but cc0 and pd requires the credit
     shown beside the picture, which the entry page does.
 
     A file of its own rather than a table in the catalogue, because the two
     change at different rates — the catalogue whenever a rule in plants_db
-    moves, the photos only when the ZIM does — and at 51 MB this would more
-    than quadruple what goes over the Pi's Wi-Fi for each of those rebuilds.
+    moves, the photos only when the ZIM does — and at 480 MB this would dwarf
+    what goes over the Pi's Wi-Fi for each of those rebuilds. A file cut before
+    there was a `photo` table still serves its thumbnails, and the entry page
+    simply has no photo.
     Optional for the same reason: without it every `thumb` is null and the
     catalogue is what it was before there were photos.
     """
@@ -717,38 +724,59 @@ class Thumbs:
         """
         if self._index is None:
             if not self.available():
-                return frozenset(), ""
+                return frozenset(), "", False
             conn = self._connect()
             try:
                 ids = frozenset(r[0] for r in conn.execute("SELECT page_id FROM thumb"))
                 meta = dict(conn.execute("SELECT key, value FROM meta").fetchall())
+                gallery = conn.execute("SELECT 1 FROM sqlite_master"
+                                       " WHERE type = 'table' AND name = 'photo'").fetchone()
             finally:
                 conn.close()
-            self._index = ids, "%s-%s" % (meta.get("built", ""), meta.get("size", ""))
+            version = "-".join(filter(None, (meta.get("built"), meta.get("size"),
+                                             meta.get("gallery_size"))))
+            self._index = ids, version, gallery is not None
         return self._index
 
     def url(self, page_id):
         """The photo's address relative to the page, as every other address
         the page builds is, or None where the entry has no photo."""
-        ids, version = self._load()
+        ids, version, _ = self._load()
         if page_id not in ids:
             return None
         return "api/catalog/%d/thumb?v=%s" % (page_id, urllib.parse.quote(version))
 
-    def credit(self, page_id):
+    def photos(self, page_id):
+        """Every 320 px photo of an entry, best first, each with its address
+        and its credit — none from a file cut before there were any."""
+        _, version, gallery = self._load()
+        if not gallery:
+            return []
         conn = self._connect()
         try:
-            row = conn.execute("SELECT width, height, source, licence, credit"
-                               " FROM thumb WHERE page_id = ?", (page_id,)).fetchone()
+            rows = conn.execute("SELECT rank, width, height, source, licence, credit"
+                                " FROM photo WHERE page_id = ? ORDER BY rank",
+                                (page_id,)).fetchall()
         finally:
             conn.close()
-        return dict(row) if row else None
+        out = []
+        for row in rows:
+            photo = dict(row)
+            photo["url"] = "api/catalog/%d/photo/%d?v=%s" % (
+                page_id, photo.pop("rank"), urllib.parse.quote(version))
+            out.append(photo)
+        return out
 
-    def jpeg(self, page_id):
+    def jpeg(self, page_id, rank=None):
+        """The thumbnail, or with a rank the 320 px photo at that rank."""
         conn = self._connect()
         try:
-            row = conn.execute("SELECT jpeg FROM thumb WHERE page_id = ?",
-                               (page_id,)).fetchone()
+            if rank is None:
+                row = conn.execute("SELECT jpeg FROM thumb WHERE page_id = ?",
+                                   (page_id,)).fetchone()
+            else:
+                row = conn.execute("SELECT jpeg FROM photo WHERE page_id = ? AND rank = ?",
+                                   (page_id, rank)).fetchone()
         finally:
             conn.close()
         return row[0] if row else None
@@ -882,6 +910,10 @@ class Handler(SimpleHTTPRequestHandler):
         if thumb:
             return self._thumb_get(int(thumb.group(1)))
 
+        photo = CATALOG_PHOTO.match(path)
+        if photo:
+            return self._thumb_get(int(photo.group(1)), int(photo.group(2)))
+
         photo = PHOTO_FILE.match(path)
         if photo:
             return self._photo_get(photo.group(1))
@@ -999,17 +1031,19 @@ class Handler(SimpleHTTPRequestHandler):
         except sqlite3.Error as exc:
             return self._fail(500, "Cannot read the catalogue: %s" % exc)
 
-    def _thumb_get(self, page_id):
+    def _thumb_get(self, page_id, rank=None):
+        """A thumbnail, or with a rank one of the entry's 320 px photos."""
         thumbs = self.catalog.thumbs if self.catalog else None
         if thumbs is None or not thumbs.available():
             return self._fail(404, "No photos on this server")
 
-        # Asked for without its version, by a page that knows only the entry's
-        # id — a species of your own linked to it. Sent on to the address a
-        # search would have given, uncached, so the photo itself can still be
-        # cached for good and a new cut is still seen.
+        # A thumbnail asked for without its version, by a page that knows only
+        # the entry's id — a species of your own linked to it. Sent on to the
+        # address a search would have given, uncached, so the photo itself can
+        # still be cached for good and a new cut is still seen. A 320 px photo
+        # is only ever linked from the entry, which gives its version.
         query = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
-        if "v" not in query:
+        if "v" not in query and rank is None:
             try:
                 url = thumbs.url(page_id)
             except sqlite3.Error as exc:
@@ -1024,7 +1058,7 @@ class Handler(SimpleHTTPRequestHandler):
             return
 
         try:
-            data = thumbs.jpeg(page_id)
+            data = thumbs.jpeg(page_id, rank)
         except sqlite3.Error as exc:
             return self._fail(500, "Cannot read the photos: %s" % exc)
         if data is None:

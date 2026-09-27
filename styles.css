@@ -312,26 +312,66 @@ main {
   background: var(--card);
 }
 
-/* A catalogue photo, at the 160 px it was cut rather than the width a plant's
-   own photo gets. It sits in a right-hand column beside the name, so the facts
-   start on the first screen instead of under a picture; the facts card clears
-   whichever of the two runs longer. */
-.c-photo {
-  float: right;
-  width: 40%;
-  margin: 0 0 16px 16px;
-  text-align: center;
-}
-.detail .facts { clear: both; }
-.c-photo img {
-  display: block;
-  margin: 0 auto 6px;
-  max-width: 100%;
-  height: auto;
+/* A catalogue entry's photos across the page, cropped a little wider than
+   tall and swiped sideways one at a time, with the name on a half-dark band
+   over their foot so the pictures cost no line of their own. Without a photo
+   the heading is an ordinary heading. The credit is under them, where every
+   licence but CC0 and public domain needs it. */
+.hero { margin: 0; }
+.hero:not(.has-photo) .hero-strip,
+.hero:not(.has-photo) figcaption { display: none; }
+.hero-frame { position: relative; }
+.hero-strip {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
   border-radius: var(--radius);
   background: var(--card);
 }
-.c-photo figcaption { color: var(--ink-dim); font-size: 12px; line-height: 1.4; }
+.hero-strip::-webkit-scrollbar { display: none; }
+.hero-strip img {
+  display: block;
+  flex: none;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  scroll-snap-align: start;
+}
+.hero-count {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.5);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  pointer-events: none;
+}
+.detail .hero.has-photo h2 {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0;
+  padding: 10px 14px;
+  background: rgb(0 0 0 / 0.5);
+  color: #fff;
+  border-radius: 0 0 var(--radius) var(--radius);
+  pointer-events: none;
+}
+/* Two lines kept whether the credit needs them or not, so swiping from a short
+   one to a long one does not shove the page under it down and back. */
+.hero figcaption {
+  min-height: 2.8em;
+  margin: 6px 0 16px;
+  color: var(--ink-dim);
+  font-size: 12px;
+  line-height: 1.4;
+}
 
 .detail h2 {
   margin: 0 0 20px;

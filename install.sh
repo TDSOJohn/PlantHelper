@@ -86,7 +86,7 @@ for name in plants.export.sqlite plants.full.sqlite plants.sqlite; do
   break
 done
 
-# The catalogue's photos, where a copy has been made: 51 MB cut by plants_db's
+# The catalogue's photos, where a copy has been made: 480 MB cut by plants_db's
 # thumbs.py, and like the full builds never in the repo — most are CC BY-NC.
 # Without it the catalogue works as it did before it had any. Staged for the
 # same reason as the catalogue.
