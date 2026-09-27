@@ -17,13 +17,21 @@
 # which stops the service, runs migrate.py over plants.json (keeping a copy of
 # the old file in backups/), and starts it again. Running it when nothing needs
 # migrating changes nothing.
+#
+# When only the app changed, skip copying the catalogue and its photos — the
+# photos are 480 MB, and rewriting them on the SD card each time is minutes on
+# a Zero for nothing:
+#
+#     sudo ./install.sh --app-only
 set -eu
 
 MIGRATE=no
+APP_ONLY=no
 for arg in "$@"; do
   case $arg in
     --migrate) MIGRATE=yes ;;
-    *) echo "usage: sudo ./install.sh [--migrate]" >&2; exit 2 ;;
+    --app-only) APP_ONLY=yes ;;
+    *) echo "usage: sudo ./install.sh [--migrate] [--app-only]" >&2; exit 2 ;;
   esac
 done
 
@@ -78,6 +86,7 @@ install -d -m 750 -o "$SERVICE_USER" -g "$SERVICE_USER" "$DATA_DIR"
 # it gets "Cannot read the catalogue" — about one request in 400 when measured,
 # which is rare enough to be baffling rather than obviously self-inflicted.
 for name in plants.export.sqlite plants.full.sqlite plants.sqlite; do
+  [ "$APP_ONLY" = no ] || break
   [ -f "$SRC/data/$name" ] || continue
   echo "installing the catalogue ($name) into $DATA_DIR"
   install -m 640 -o "$SERVICE_USER" -g "$SERVICE_USER" \
@@ -90,7 +99,7 @@ done
 # thumbs.py, and like the full builds never in the repo — most are CC BY-NC.
 # Without it the catalogue works as it did before it had any. Staged for the
 # same reason as the catalogue.
-if [ -f "$SRC/data/plants.thumbs.sqlite" ]; then
+if [ "$APP_ONLY" = no ] && [ -f "$SRC/data/plants.thumbs.sqlite" ]; then
   echo "installing the catalogue photos into $DATA_DIR"
   install -m 640 -o "$SERVICE_USER" -g "$SERVICE_USER" \
     "$SRC/data/plants.thumbs.sqlite" "$DATA_DIR/plants.thumbs.sqlite.new"

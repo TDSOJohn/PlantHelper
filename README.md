@@ -1034,6 +1034,14 @@ That copies the app to `/opt/plants`, creates a system user, puts the data in
 APP_DIR=/opt/plants DATA_DIR=/var/lib/plants PORT=80 sudo -E ./install.sh
 ```
 
+Every run copies the catalogue and its 480 MB of photos out of `data/` again.
+When only the app changed — a `git pull` with no new `scp` behind it — skip
+that:
+
+```sh
+sudo ./install.sh --app-only
+```
+
 Re-running it updates the app, refreshes the catalogue and restarts the
 service; it never touches your plant list unless you pass `--migrate`.
 
