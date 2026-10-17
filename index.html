@@ -312,12 +312,20 @@
           <span class="val" id="sd-ph"></span>
         </div>
         <div class="fact">
+          <span class="key">Soil moisture</span>
+          <span class="val" id="sd-moisture"></span>
+        </div>
+        <div class="fact">
           <span class="key">Light</span>
           <span class="val" id="sd-light"></span>
         </div>
         <div class="fact">
           <span class="key">Height</span>
           <span class="val" id="sd-height"></span>
+        </div>
+        <div class="fact">
+          <span class="key">Leaves</span>
+          <span class="val" id="sd-leaf"></span>
         </div>
         <div class="fact">
           <span class="key">Schedule</span>
@@ -356,7 +364,7 @@
   </section>
 
   <!-- ---------- the reference catalogue ----------
-       Read-only, and the one part of the app that needs the Pi: the 14,349
+       Read-only, and the one part of the app that needs the Pi: the 14,244
        entries live in a SQLite file there and are searched there, not held on
        the phone. Reached from the bar rather than from Species, which is why
        this is the one read-only page with no back arrow. -->
@@ -542,6 +550,10 @@
           <span class="val" id="c-height"></span>
         </div>
         <div class="fact">
+          <span class="key">Leaves</span>
+          <span class="val" id="c-leaf"></span>
+        </div>
+        <div class="fact">
           <span class="key">Growth form</span>
           <span class="val" id="c-form"></span>
         </div>
@@ -668,6 +680,20 @@
                  autocomplete="off" aria-label="Highest soil pH">
         </div>
         <p id="sp-ph-error" class="hint error" hidden></p>
+        <!-- The six phrases in MOISTURE, core.js, which is what the catalogue
+             fills this from. -->
+        <div class="inline">
+          <span>Soil</span>
+          <select id="sp-moisture" aria-label="How wet a soil it wants">
+            <option value="">Not set</option>
+            <option value="dry">Dry</option>
+            <option value="dry or moist">Dry or moist</option>
+            <option value="moist">Moist</option>
+            <option value="moist or wet">Moist or wet</option>
+            <option value="wet">Wet</option>
+            <option value="dry moist or wet">Dry, moist or wet</option>
+          </select>
+        </div>
       </fieldset>
 
       <fieldset class="group">
@@ -697,6 +723,28 @@
           <span>cm</span>
         </div>
         <p id="sp-height-error" class="hint error" hidden></p>
+        <!-- Text rather than number, for the comma, as with the pH: plenty of
+             leaves are under a centimetre across. -->
+        <div class="inline">
+          <span>Leaves</span>
+          <input id="sp-leaf-length-min" type="text" inputmode="decimal" maxlength="6"
+                 autocomplete="off" aria-label="Shortest leaf, cm">
+          <span>to</span>
+          <input id="sp-leaf-length-max" type="text" inputmode="decimal" maxlength="6"
+                 autocomplete="off" aria-label="Longest leaf, cm">
+          <span>cm long</span>
+        </div>
+        <p id="sp-leaf-length-error" class="hint error" hidden></p>
+        <div class="inline">
+          <span>and</span>
+          <input id="sp-leaf-width-min" type="text" inputmode="decimal" maxlength="6"
+                 autocomplete="off" aria-label="Narrowest leaf, cm">
+          <span>to</span>
+          <input id="sp-leaf-width-max" type="text" inputmode="decimal" maxlength="6"
+                 autocomplete="off" aria-label="Widest leaf, cm">
+          <span>cm wide</span>
+        </div>
+        <p id="sp-leaf-width-error" class="hint error" hidden></p>
         <p class="hint">Centimetres, and a range where you know one. A single
           figure on its own reads as a ceiling — "to 2 m".</p>
       </fieldset>

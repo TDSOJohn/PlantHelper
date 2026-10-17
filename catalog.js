@@ -3,12 +3,12 @@
 /* =========================================================================
    The reference catalogue
 
-   14,349 species sitting in a SQLite file on the Pi, out of three sources:
+   14,244 species sitting in a SQLite file on the Pi, out of three sources:
    5,065 mined from the English Wikipedia dump, 7,161 with a pfaf.org page,
-   and 3,751 with one on edibleplantdb.org, overlapping on 1,580 plants that
+   and 3,666 with one on edibleplantdb.org, overlapping on 1,599 plants that
    two or three of them describe. pfaf.org states soil, shade and hardiness
    outright where an encyclopedia had to be read for them; edibleplantdb.org
-   mostly restates pfaf in prose, and earns its place with the 3,255 plants
+   mostly restates pfaf in prose, and earns its place with the 3,150 plants
    neither of the others lists and the synonyms it knows the rest by.
 
    It is searched there rather than held here: an encyclopedia has no business
@@ -24,8 +24,9 @@
 const CATALOG = new URL('api/catalog', document.baseURI).href;
 const CATALOG_WAIT = 250;        // ms of quiet before a typed name is searched
 
-/* Wikipedia describes light four ways where the app's own records know two,
-   so the catalogue does its own phrasing rather than bending LIGHT to fit. */
+/* The catalogue describes light four ways where the app's own records know
+   two, so it does its own phrasing rather than bending LIGHT to fit. An entry
+   gives a range of them, shadiest first: see `catalogLightText`. */
 const CATALOG_LIGHT = { direct: 'Direct sun', indirect: 'Indirect light',
                         partial: 'Partial sun', shade: 'Shade' };
 
@@ -43,10 +44,11 @@ const CATALOG_MARKS = { edible: 'Edible', otherUses: 'Other uses',
 const CATALOG_USES = { edible: 'Edible', medicinal: 'Medicinal',
                        otherUses: 'Other uses' };
 
-/* pfaf.org words a growth form and a soil moisture in lower case, and
-   ../plants_db keeps them that way because the case on a pfaf page is a
-   template artifact rather than a distinction. Both open a fact on the entry
-   page, where they read as labels, so the capital goes back on here. The
+/* pfaf.org words a growth form in lower case, and ../plants_db keeps it that
+   way because the case on a pfaf page is a template artifact rather than a
+   distinction. It opens a fact on the entry page, where it reads as a label,
+   so the capital goes back on here. (Soil moisture is lower case too, and has
+   its own labels in core.js, because a species shows it as well.) The
    eleven growth forms themselves are the `#cat-growthForm` options and the
    `FORMS` tuple in server.py, which rejects anything outside them. */
 const sentenceCase = (text) => text ? text[0].toUpperCase() + text.slice(1) : '';
@@ -189,8 +191,13 @@ function aliasText(entry) {
   return 'known here as ' + (extra > 0 ? shown + ' and ' + extra + ' more' : shown);
 }
 
+/* "Partial sun – Direct sun": the light it is comfortable in, from the
+   shadiest end to the sunniest, or one label where both ends are the same. */
 function catalogLightText(entry) {
-  const kind = (entry.light && CATALOG_LIGHT[entry.light.kind]) || '';
+  const light = entry.light || {};
+  const low = CATALOG_LIGHT[light.min] || '';
+  const high = CATALOG_LIGHT[light.max] || '';
+  const kind = low === high ? low : [low, high].filter(Boolean).join(' – ');
   const hours = figure(entry, 'light', 'hours');
   const spell = hours === null ? '' : (hours === 1 ? '1 hour a day' : hours + ' hours a day');
   return [kind, spell].filter(Boolean).join(', ');
@@ -506,9 +513,9 @@ async function renderCatalogEntry(pageId) {
   show('catalog-detail', 'Catalogue');
 
   const fields = ['#c-title', '#c-binomial', '#c-temp', '#c-humidity', '#c-ph',
-                  '#c-moisture', '#c-light', '#c-height', '#c-form', '#c-family',
-                  '#c-zone', '#c-drought', '#c-weedy', '#c-flags', '#c-ratings',
-                  '#c-uses', '#c-notes', '#c-lead', '#c-meta'];
+                  '#c-moisture', '#c-light', '#c-height', '#c-leaf', '#c-form',
+                  '#c-family', '#c-zone', '#c-drought', '#c-weedy', '#c-flags',
+                  '#c-ratings', '#c-uses', '#c-notes', '#c-lead', '#c-meta'];
   for (const sel of fields) $(sel).textContent = '';
   showPhotos($('#c-photo'), [], '');
 
@@ -555,12 +562,11 @@ async function renderCatalogEntry(pageId) {
   const banded = $('#c-ph-from');
   banded.hidden = !entry.phFromBands;
   banded.textContent = entry.phFromBands ? 'from soil bands' : '';
-  // pfaf.org's word for the soil it wants, as it words it: `dry`, `moist`,
-  // `wet` and the three pairings of those. A closed set of six, and turning it
-  // into a pair of numbers would mean inventing a scale nobody measured.
-  fill($('#c-moisture'), sentenceCase(entry.moisture), 'Not recorded');
+  // pfaf.org's phrase for the soil it wants, one of the six in MOISTURE.
+  fill($('#c-moisture'), moistureText(entry), 'Not recorded');
   fill($('#c-light'), catalogLightText(entry), 'Not recorded');
   fill($('#c-height'), heightText(entry), 'Not recorded');
+  fill($('#c-leaf'), leafText(entry), 'Not recorded');
   fill($('#c-form'), sentenceCase(entry.growthForm), 'Not recorded');
   fill($('#c-family'), entry.family, 'Not recorded');
   fill($('#c-zone'), entry.zone && 'Zone ' + entry.zone, 'Not recorded');
@@ -599,7 +605,7 @@ async function renderCatalogEntry(pageId) {
 
   // The link is a column of its own rather than built from the id, because
   // most of those negative ids have an article after all: plants_db matched
-  // 6,699 of them to one by name, and their lead is that article's too. A
+  // 6,616 of them to one by name, and their lead is that article's too. A
   // `genus` or `species` match is an article about something broader than
   // this plant, so the button says so rather than promising the plant itself.
   const wiki = $('#c-wiki');

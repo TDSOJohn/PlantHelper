@@ -147,21 +147,49 @@ function lightText(plant) {
    the kind, and the one place worth asking is an encyclopedia.
 
    Centimetres in the record, metres once that stops being readable. A single
-   figure is what the article gave — "growing to 2 m tall" is stored as a
-   minimum with no maximum — so it reads as a ceiling rather than as the
-   bottom of a range it never had. */
-function heightText(record) {
-  const low = figure(record, 'height', 'min');
-  const high = figure(record, 'height', 'max');
+   figure is what the source gave — "growing to 2 m tall" is stored as a
+   minimum with no maximum, and pfaf.org's one height as both ends at once —
+   so it reads as a ceiling rather than as a range it never had: "To 3 m",
+   never "3–3 m". */
+function sizeText(record, group) {
+  const low = figure(record, group, 'min');
+  const high = figure(record, group, 'max');
   const tall = high === null ? low : high;
   if (tall === null) return '';
 
   const unit = tall >= 100 ? ' m' : ' cm';
   const say = (cm) => (tall >= 100 ? Number((cm / 100).toFixed(1)) : cm);
 
-  if (low === null || high === null) return 'To ' + say(tall) + unit;
+  if (low === null || high === null || low === high) return 'To ' + say(tall) + unit;
   return say(low) + '–' + say(high) + unit;
 }
+
+const heightText = (record) => sizeText(record, 'height');
+
+/* A leaf is two more groups of the same shape, `leafLength` and `leafWidth`,
+   read the same way and kept apart because a group's figures have to rise
+   from first to last and a leaf's width has nothing to do with its length.
+   Centimetres to a decimal place, since a good few are under one. Both come
+   from the model's reading of an article, on 2,520 catalogue entries, so a
+   species carries them where it was filled in from one of those or where you
+   typed them. "2–8 cm long, to 3.5 cm wide", either half alone. */
+function leafText(record) {
+  const long = sizeText(record, 'leafLength');
+  const wide = sizeText(record, 'leafWidth');
+  if (long && wide) return long + ' long, ' + wide.replace(/^To/, 'to') + ' wide';
+  return long ? long + ' long' : (wide ? wide + ' wide' : '');
+}
+
+/* How wet a soil it wants, as pfaf.org words it: a closed set of six, the
+   three words and the three ways of having more than one. Kept as the phrase
+   rather than as ../plants_db's 1-5 `soil_moisture` because the phrase is what
+   gets read, and the sixth — "any of them" — is a fact about the plant that a
+   point on a scale would hide in the middle. A species stores the same phrase,
+   copied across from an entry or picked on the form. */
+const MOISTURE = { dry: 'Dry', 'dry or moist': 'Dry or moist', moist: 'Moist',
+                   'moist or wet': 'Moist or wet', wet: 'Wet',
+                   'dry moist or wet': 'Dry, moist or wet' };
+const moistureText = (record) => MOISTURE[record.moisture] || '';
 
 /* =========================================================================
    Species and inheritance

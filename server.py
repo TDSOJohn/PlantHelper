@@ -46,7 +46,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 API_PATH = "/api/plants"
 PHOTO_API = re.compile(r"^/api/photo/([A-Za-z0-9_-]{1,64})$")
 PHOTO_FILE = re.compile(r"^/photos/([A-Za-z0-9_-]{1,64})\.jpg$")
-# The id is Wikipedia's page id, and the 9,284 plants it has no article for
+# The id is Wikipedia's page id, and the 9,179 plants it has no article for
 # carry a negative one instead — see `Catalog` below. A minus sign is part of
 # the key, so the route has to accept it or those entries cannot be opened.
 CATALOG_API = re.compile(r"^/api/catalog(?:/(-?[0-9]{1,12}))?$")
@@ -237,28 +237,30 @@ def like_escape(text):
 
 
 class Catalog:
-    """The reference catalogue: 14,349 species built by ../plants_db.
+    """The reference catalogue: 14,244 species built by ../plants_db.
 
     Three sources behind those rows, in the seven combinations that `source`
     names per row. 5,065 are an English Wikipedia article, 7,161 have a
     pfaf.org page — which states soil, shade and hardiness outright where an
-    encyclopedia had to be mined for them — and 3,751 have a page on
+    encyclopedia had to be mined for them — and 3,666 have a page on
     edibleplantdb.org, an aggregate whose own figures mostly restate pfaf's
-    and whose worth here is the tail it adds: 3,255 plants neither of the
+    and whose worth here is the tail it adds: 3,150 plants neither of the
     other two lists, and 28,374 synonyms that make the other rows findable
     under the names they used to have.
 
-    3,587 rows are Wikipedia alone, 5,927 pfaf.org alone and 3,255
-    edibleplantdb.org alone; the remaining 1,580 are two or three of them
-    agreeing on the same plant.
+    3,581 rows are Wikipedia alone, 5,914 pfaf.org alone and 3,150
+    edibleplantdb.org alone; the remaining 1,599 are two or three of them
+    agreeing on the same plant. There were 105 more until ../plants_db
+    found them to be a pfaf.org plant listed again under an old name and
+    merged each into the entry it duplicated, its names becoming aliases.
 
-    The 9,284 not mined from an article carry a *negative* `page_id`. The
+    The 9,179 not mined from an article carry a *negative* `page_id`. The
     column is Wikipedia's page id and they have none, so ../plants_db hands
     them a key that obviously is not
     one rather than inventing a number a future dump could collide with. It is
     a valid key everywhere here — `CATALOG_API` accepts the minus sign — and it
     is not what links an entry to Wikipedia: `wiki_url` is. A later pass matched
-    6,699 of those 9,284 to an article by name, so a link built out of
+    6,616 of those 9,179 to an article by name, so a link built out of
     `page_id` would leave every one of them out.
 
     Read-only, and deliberately not part of plants.json. It is the opposite
@@ -317,17 +319,19 @@ class Catalog:
     #              at all, 5,050 record only a floor.
     #   heightMin  both ends of the height question, and both bound the same
     #   heightMax  figure: the tallest it is known to get, which is the maximum
-    #              where a range was given and the single figure otherwise
-    #              ("growing to 2 m tall" is stored as a minimum with no
-    #              maximum). Bounding one figure from both sides rather than
+    #              where one was recorded and the minimum otherwise. A single
+    #              figure is written three ways — pfaf.org's one height as both
+    #              ends, an article's "growing to 2 m tall" as a minimum alone,
+    #              and now and then a maximum alone — and max-or-min reads all
+    #              three alike. Bounding one figure from both sides rather than
     #              comparing the two recorded ends is what makes the pair
     #              explicable in a line — and it is the right reading: a plant
     #              recorded at 1–3 m does reach 2 m, so it answers "at least
-    #              2 m". Height is the best-covered figure in the catalogue
-    #              (8,205 entries) and the most evenly spread, from under 15 cm
-    #              to over 30 m, which is why it is worth asking from both
-    #              ends: 2,141 entries are over 5 m, and "no taller than" alone
-    #              could never ask for those.
+    #              2 m". Height is among the best-covered figures in the
+    #              catalogue (9,086 entries) and the most evenly spread, from
+    #              under 15 cm to over 30 m, which is why it is worth asking
+    #              from both ends: 2,371 entries are over 5 m, and "no taller
+    #              than" alone could never ask for those.
     BANDS = {
         "ph": ("ph_min", "ph_max"),
         "humidity": ("humidity_min", "humidity_max"),
@@ -384,10 +388,13 @@ class Catalog:
         """Every filter that takes a number."""
         return tuple(cls.BANDS) + tuple(cls.AT_MOST) + tuple(cls.AT_LEAST)
 
-    # Wikipedia describes light four ways. The app's own records know only the
-    # first two, so importing one of the others has to choose — but a search
-    # over the catalogue should still be able to say what it means.
-    KINDS = ("direct", "indirect", "partial", "shade")
+    # The four kinds of light, shadiest first, which is also the scale
+    # ../plants_db stores them on: `light_min` and `light_max` count 1-4 into
+    # this tuple, so "full sun to part shade" is 3-4 and a source naming one
+    # kind gives a range of one. The app's own records know only direct and
+    # indirect, so importing a range has to choose — but a search over the
+    # catalogue should still be able to say what it means.
+    KINDS = ("shade", "indirect", "partial", "direct")
 
     def __init__(self, path, thumbs=None):
         self.path = os.path.abspath(path)
@@ -418,9 +425,10 @@ class Catalog:
         carries them, so the page can format a catalogue entry with the same
         code that formats your own plants. Height is a fifth group of the same
         shape that no plant record has: the app has never asked how big yours
-        get, and an encyclopedia is the one place worth asking. An empty group
-        is left out rather than sent as a bag of nulls: absent already means
-        unset everywhere else.
+        get, and an encyclopedia is the one place worth asking. A leaf's length
+        and width are a sixth and a seventh, for the same reason. An empty
+        group is left out rather than sent as a bag of nulls: absent already
+        means unset everywhere else.
         """
         out = {"pageId": row["page_id"], "title": row["title"],
                "binomial": row["binomial"], "score": row["score"]}
@@ -429,16 +437,32 @@ class Catalog:
         # for twenty to find out.
         out["thumb"] = self.thumbs.url(row["page_id"]) if self.thumbs else None
 
+        kind = lambda rank: self.KINDS[rank - 1] if rank else None
         groups = {
             "temps": {"absMin": row["temp_abs_min"], "avgMin": row["temp_avg_min"],
                       "avgMax": row["temp_avg_max"], "absMax": row["temp_abs_max"]},
             "humidity": {"min": row["humidity_min"], "max": row["humidity_max"]},
             "ph": {"min": row["ph_min"], "max": row["ph_max"]},
-            "light": {"hours": row["light_hours"], "kind": row["light_kind"]},
-            # Centimetres, and a range where the article gave one. A single
-            # figure lands in `min` with no `max`, so the tall end of any
-            # entry is max-or-min; the page formats it that way.
+            # The light it is comfortable in, from the shadiest kind to the
+            # sunniest, and the same kind twice where the source named one.
+            # Sent as the words in KINDS rather than the 1-4 they are stored
+            # as: words are what the page labels, and `light_kind`, the one
+            # word the file used to carry, is no longer read.
+            "light": {"hours": row["light_hours"], "min": kind(row["light_min"]),
+                      "max": kind(row["light_max"])},
+            # Centimetres, and a range where the source gave one. A single
+            # figure is both ends at once from pfaf.org and one end alone
+            # elsewhere, so the tall end of any entry is max-or-min, and the
+            # page formats it that way and reads equal ends as one figure.
             "height": {"min": row["height_min_cm"], "max": row["height_max_cm"]},
+            # A leaf's length and width, read the same way and in the same
+            # unit. Two groups rather than one of four, because the page
+            # checks that a group's figures rise from first to last, and a
+            # leaf can be narrower than it is long or not.
+            "leafLength": {"min": row["leaf_length_min_cm"],
+                           "max": row["leaf_length_max_cm"]},
+            "leafWidth": {"min": row["leaf_width_min_cm"],
+                          "max": row["leaf_width_max_cm"]},
         }
         for name, bag in groups.items():
             kept = {key: value for key, value in bag.items() if value is not None}
@@ -483,7 +507,7 @@ class Catalog:
             out["notes"] = row["notes"] or ""
             out["lead"] = row["lead"] or ""
             # The article to open, and how ../plants_db found it. Every row
-            # mined from one has a link, and so do 6,699 of the 9,284 that
+            # mined from one has a link, and so do 6,616 of the 9,179 that
             # were not — matched to an article by name afterwards, which is
             # also where their `lead` comes from. A "genus" or "species" match
             # is an article about something broader than this plant, and the
@@ -550,9 +574,13 @@ class Catalog:
                 where.append("({col} IS NOT NULL AND {col} >= ?)".format(col=rating))
                 args.append(asked)
 
+        # Inside the range rather than equal to one word: "full sun to part
+        # shade" is partial sun *and* direct, and 4,128 entries say exactly
+        # that. Matched on a single kind, each answered only one of the two.
         if terms.get("kind"):
-            where.append("light_kind = ?")
-            args.append(terms["kind"])
+            rank = self.KINDS.index(terms["kind"]) + 1
+            where.append("(light_min <= ? AND light_max >= ?)")
+            args += [rank, rank]
 
         if terms.get("growthForm"):
             where.append("growth_form = ?")
@@ -562,13 +590,13 @@ class Catalog:
         # Wikipedia also has an article: the ones that state soil, shade and
         # hardiness outright instead of having had them read out of prose, and
         # the only ones carrying a rating. Worth asking for on its own — it is
-        # the difference between a catalogue of 14,349 names and a shortlist of
+        # the difference between a catalogue of 14,244 names and a shortlist of
         # plants somebody actually wrote the growing conditions down for.
         #
         # This was once written as the complement of `enwiki`, on the argument
         # that a third source should be included by default rather than
         # silently dropped. The third source arrived and that reading was
-        # simply wrong: it answered "has a pfaf.org page" with the 3,255 rows
+        # simply wrong: it answered "has a pfaf.org page" with the 3,150 rows
         # that have an edibleplantdb.org one instead, none of which carries a
         # rating. Naming pfaf is what the question asks, so it is named. On the
         # Wikipedia-only build no row is stamped at all, so this matches
@@ -653,8 +681,8 @@ class Catalog:
                 "temp": count("temp_abs_min IS NOT NULL OR temp_avg_min IS NOT NULL"
                               " OR temp_avg_max IS NOT NULL OR temp_abs_max IS NOT NULL"),
                 "ph": count("ph_min IS NOT NULL OR ph_max IS NOT NULL"),
-                "light": count("light_kind IS NOT NULL"),
-                "height": count("height_min_cm IS NOT NULL"),
+                "light": count("light_min IS NOT NULL"),
+                "height": count("height_min_cm IS NOT NULL OR height_max_cm IS NOT NULL"),
                 "notes": count("notes IS NOT NULL AND notes != ''"),
                 # Every row with a pfaf.org page behind it, and the ceiling
                 # on every rating question: nothing outside these carries one.
@@ -679,7 +707,7 @@ class Catalog:
 
 
 class Thumbs:
-    """Photos for 9,480 of the catalogue's entries, from ../plants_db/thumbs.py.
+    """Photos for 9,382 of the catalogue's entries, from ../plants_db/thumbs.py.
 
     Cut from edibleplantdb.org's galleries, most of them iNaturalist uploads
     and the rest GBIF — mostly herbarium sheets — and Wikimedia Commons, with
@@ -715,7 +743,7 @@ class Thumbs:
     def _load(self):
         """Which entries have a photo, and the token that versions them all.
 
-        9,480 integers, held for the life of the process so a search needs no
+        9,382 integers, held for the life of the process so a search needs no
         second file opened to say which of its twenty rows have one. Cached
         like `Catalog.coverage` and for the same reason: a new file is copied
         in with a restart behind it. The token is when and at what size the
@@ -855,7 +883,7 @@ def catalog_terms(query):
     # rather than a row offset so that how big one is stays this file's
     # business alone — CATALOG_LIMIT above — and the page asking never has to
     # know the number, only that it wants the next one. Six digits is 20
-    # million rows past the end of a catalogue of 14,349; beyond that the
+    # million rows past the end of a catalogue of 14,244; beyond that the
     # request is a typo rather than a search.
     text = first("page")
     if text:

@@ -18,7 +18,7 @@ of record are the three pages that make one.
 
 The bar is for going places, and it got the [catalogue](#catalogue) in exchange.
 That was a button at the foot of **Species**, which is a strange place for it:
-14,349 entries you can read without owning a plant are not a footnote to the
+14,244 entries you can read without owning a plant are not a footnote to the
 handful of species you keep, and reaching them meant opening a list first. It
 is a tab now, and **Add a species** has the top of that page to itself.
 
@@ -50,7 +50,7 @@ migrate.py                      bring plants.json up to date (install.sh --migra
 data/plants.sqlite              the reference catalogue
 data/plants.export.sqlite       the same, plus pfaf.org and edibleplantdb.org
 data/plants.full.sqlite         the same again, plus both raw crawls
-data/plants.thumbs.sqlite       photos for 9,480 of its entries
+data/plants.thumbs.sqlite       photos for 9,382 of its entries
 ```
 
 ## Long lists
@@ -64,7 +64,7 @@ piece of furniture every page carries.
 Two of the three are sliced in the browser, because the whole list is already
 there: your plants and species live in `localStorage` and the page just shows
 a window onto them. The catalogue is sliced by the Pi, one request per page,
-because 14,349 rows are not going anywhere near a phone. That is also what
+because 14,244 rows are not going anywhere near a phone. That is also what
 made the whole of a search reachable: it used to answer with the best sixty
 matches and stop, and *"7,161 entries · showing the first 60"* was as far as
 you could get. The 60 is a 20 now, and the other 7,101 are 358 taps of **Next**
@@ -193,8 +193,9 @@ before, or simply one going by the same name — the button says **Fill in
 *that*** instead, and it is that record the form opens on. Typing a species by
 hand and finding it in the catalogue afterwards is the case this is really for.
 
-What comes across: the four condition groups, the height, the notes, and the
-three marks with the *Uses* paragraph behind them. What does not: the watering
+What comes across: the four condition groups, the height, the leaf size, the
+soil moisture, the notes, and the three marks with the *Uses* paragraph behind
+them. What does not: the watering
 schedule, because how often you water something is not a fact an encyclopedia
 has an opinion on. The name and the notes are filled only where you left them
 empty; the figures are written over. Nothing is saved until you press Save, so
@@ -207,9 +208,12 @@ of a plant you own. What the record keeps of the entry is its `catalogId`, so
 the form can offer **Open the entry** to read the article's prose again, and
 **Fill in again** to take a newer dump's figures deliberately.
 
-Wikipedia describes light four ways where a species knows two, so importing one
-of the other two has to choose: partial sun is still sun, and shade is the
-absence of it, which is what indirect light amounts to indoors.
+The catalogue gives light as a range over four kinds where a species knows two,
+so importing one has to choose, and it goes by the sunny end: a range that
+reaches partial or direct sun comes across as **direct**, and one that tops out
+at indirect light or shade as **indirect**. Partial sun is still sun, and shade
+is the absence of it, which is what indirect light amounts to indoors. A range
+of one kind comes across exactly as a single kind always did.
 
 ### What is inherited, and what wins
 
@@ -221,7 +225,8 @@ number you did not type is never mistaken for one you did.
 
 Height is the one that only ever goes one way. How big a kind gets is a fact
 about the kind, so a plant has no height boxes of its own; its page shows the
-species' figure or *Not set*.
+species' figure or *Not set*. Leaf size and soil moisture are species-only too,
+and are shown on the species' page rather than the plant's.
 
 On the forms a box is in one of three states, styled apart because two of them
 are grey and would otherwise read as figures somebody had entered:
@@ -280,7 +285,7 @@ is a normal intermediate state, and the app treats it as one — the plant simpl
 falls back to its own figures until the species arrives.
 
 There *is* a SQLite file on the Pi, and it is the exception that shows the
-rule: the [catalogue](#catalogue) below is 14,349 rows nobody edits, rebuilt
+rule: the [catalogue](#catalogue) below is 14,244 rows nobody edits, rebuilt
 from scratch whenever the sources behind it are re-mined, and never syncs
 anywhere.
 Every argument above turns on your plants being small, precious and offline.
@@ -288,8 +293,8 @@ None of the three is true of an encyclopedia.
 
 ## Catalogue
 
-14,349 species built by [../plants_db](../plants_db) — the four condition
-groups this app uses, plus a height, a growth form, a soil moisture, three
+14,244 species built by [../plants_db](../plants_db) — the four condition
+groups this app uses, plus a height, a leaf size, a growth form, a soil moisture, three
 yes-or-nothing marks and two three-state flags that only make sense on a
 catalogue. The **Catalogue** tab searches it.
 
@@ -297,24 +302,28 @@ Three sources are behind those rows, in the seven combinations that an entry
 names at the foot of its page. **5,065** have an English Wikipedia article.
 **7,161** have a page on [pfaf.org](https://pfaf.org), a plant-uses database
 that states soil, shade and hardiness outright where an encyclopedia had to be
-mined for them. **3,751** have one on
+mined for them. **3,666** have one on
 [edibleplantdb.org](https://edibleplantdb.org), an aggregate that re-renders
 pfaf's own vocabulary as prose and pads it with Food Plants International's
-wild-forage records. 1,580 plants are described by two of the three or by all
+wild-forage records. 1,599 plants are described by two of the three or by all
 three; the rest are somebody's alone.
 
 The third source is the thin one on purpose. Two thirds of it was already here,
-so what it was read for is the tail: **3,255** plants neither of the others
+so what it was read for is the tail: **3,150** plants neither of the others
 lists, **499** existing rows filled in, and **28,374** synonyms — which are the
 best thing in it per byte, because its taxonomy is a generation behind ours and
 its accepted names are therefore our old ones: *Vigna sinensis* now finds the
-cowpea, *Zea mays var. saccharata* the maize.
+cowpea, *Zea mays var. saccharata* the maize. The same lag made 105 of its
+pages a second entry for a plant already here, PFAF's page under an old name
+beside one under the accepted name; `plants_db` has merged each copy into the
+entry it duplicated, so *Tara spinosa* is now an alias that finds *Caesalpinia
+spinosa* rather than an entry of its own.
 
 It shows in the coverage — the kind of light went from 1,224 rows to **10,979**,
 a minimum temperature from 789 to **6,931**, soil pH from 235 to **7,895** —
 and it is why the section below has two labels to distrust rather than one.
 
-**9,284** rows carry a **negative** page id. The column is Wikipedia's page id
+**9,179** rows carry a **negative** page id. The column is Wikipedia's page id
 and they have none, so `plants_db` hands them a key that obviously is not one
 rather than inventing a number a future dump could collide with. Nothing in the
 app minds.
@@ -322,11 +331,11 @@ app minds.
 A negative id does not mean Wikipedia has no article, only that none was mined:
 the first pass over the dump skipped them, mostly stubs with no section on
 growing the plant. So `plants_db` read the dump a second time and matched
-**6,699** of the 9,284 to an article by name — *Viburnum furcatum*, *Choisya
+**6,616** of the 9,179 to an article by name — *Viburnum furcatum*, *Choisya
 ternata* — taking the article's first paragraph as the entry's **Lead**. The
 link is read from its own `wiki_url` column rather than built from the id, and
-the other **2,585** have none, so their entry offers no link rather than a
-wrong one. **284** of the matches land on the article about the plant's species
+the other **2,563** have none, so their entry offers no link rather than a
+wrong one. **271** of the matches land on the article about the plant's species
 or genus — a variety whose species alone has a page — and the button on those
 says *Open the species on Wikipedia* or *Open the genus on Wikipedia*.
 
@@ -343,14 +352,16 @@ storage question; whether you have one at all is a licensing question:
 | | | |
 |---|---|---|
 | `data/plants.sqlite` | 4.9 MB | Wikipedia only, 5,065 rows. **In the repo.** |
-| `data/plants.export.sqlite` | 14.9 MB | All three sources, 14,349 rows. The one that gets deployed. **Not in the repo**, and in `.gitignore`. |
-| `data/plants.full.sqlite` | 61.6 MB | The same 14,349 rows with both raw crawls still attached. Lives only on the machine that built it. **Not in the repo**, and in `.gitignore`. |
+| `data/plants.export.sqlite` | 15.9 MB | All three sources, 14,244 rows. The one that gets deployed. **Not in the repo**, and in `.gitignore`. |
+| `data/plants.full.sqlite` | 76.5 MB | The same 14,244 rows with both raw crawls still attached. Lives only on the machine that built it. **Not in the repo**, and in `.gitignore`. |
 
-The last two hold the identical catalogue. The 47 MB between them is the `pfaf`
-and `epdb` tables — the two crawls in full, one row per page read, kept so a
-later mining of those pages needs no second pass over them. The app has never
-queried either and `server.py` does not know they exist, so the copy that
-travels to the Pi is the one without them.
+The last two hold the identical catalogue. Most of the 61 MB between them is
+the `pfaf` and `epdb` tables — the two crawls in full, one row per page read,
+kept so a later mining of those pages needs no second pass over them — and the
+rest is `plants_db`'s working papers: `wiki` (each article's own figures),
+`wiki_llm` (the model's replies) and `conflict` (its audit list). The app has
+never queried any of them and `server.py` does not know they exist, so the
+copy that travels to the Pi is the one without them.
 
 pfaf.org's pages carry `© Plants For A Future` and no reuse grant anyone can
 find — the footer's link to a terms page is commented out in the HTML, so there
@@ -389,10 +400,37 @@ UPDATE species SET wiki_url = 'https://en.wikipedia.org/?curid=' || page_id,
                    wiki_match = 'article';
 ```
 
-The full builds carry one column the small one does not: `epdb_filled`, which
-records what the edibleplantdb.org pass wrote into a row so that a later run of
-it can take those values back. That is `plants_db`'s bookkeeping rather than
-anything to show, and nothing here reads it — every query in `server.py` picks
+The same goes for the two giving light as a range, `light_min` and
+`light_max`, which arrived after that build was made. On it every range is one
+kind wide, read off the `light_kind` it already had, so four more statements
+bring a fresh copy level:
+
+```sql
+ALTER TABLE species ADD COLUMN light_min INTEGER;
+ALTER TABLE species ADD COLUMN light_max INTEGER;
+UPDATE species SET light_min = CASE light_kind WHEN 'shade' THEN 1
+    WHEN 'indirect' THEN 2 WHEN 'partial' THEN 3 WHEN 'direct' THEN 4 END;
+UPDATE species SET light_max = light_min;
+```
+
+And for the four leaf sizes, which came with the model's reading of the
+articles, after that build too. That build has no such reading, so they stay
+empty there:
+
+```sql
+ALTER TABLE species ADD COLUMN leaf_length_min_cm REAL;
+ALTER TABLE species ADD COLUMN leaf_length_max_cm REAL;
+ALTER TABLE species ADD COLUMN leaf_width_min_cm REAL;
+ALTER TABLE species ADD COLUMN leaf_width_max_cm REAL;
+```
+
+The full builds carry columns the small one does not. `epdb_filled` records
+what the edibleplantdb.org pass wrote into a row so that a later run of it can
+take those values back; `llm_filled`, `llm_replaced` and `llm_was` say which
+figures a language model read out of the Wikipedia article and what they held
+before; and `soil_moisture` is `moisture` as a number from 1 (dry) to 5 (wet),
+which the app has no use for while it shows the phrase and does not filter
+on it. None of it is read here — every query in `server.py` picks
 its columns out of a `SELECT *` by name, so a column present in one build and
 absent from another costs nothing as long as it is not one of the names the
 code asks for.
@@ -426,7 +464,8 @@ cp ../plants_db/plants.sqlite data/plants.full.sqlite
 cp data/plants.full.sqlite data/plants.export.sqlite
 python3 -c "import sqlite3
 sqlite3.connect('data/plants.export.sqlite').executescript(
-    'DROP TABLE pfaf; DROP TABLE epdb; VACUUM;')"
+    'DROP TABLE pfaf; DROP TABLE epdb; DROP TABLE wiki; DROP TABLE wiki_llm; '
+    'DROP TABLE conflict; VACUUM;')"
 
 # the photos, which plants_db cuts into a file of their own
 cp ../plants_db/plants.thumbs.sqlite data/plants.thumbs.sqlite
@@ -440,8 +479,8 @@ cd plants && sudo ./install.sh
 ```
 
 The `scp` on its own is the whole update where you do not run the app locally,
-which is what [step 2](#2-install) shows — and it is 14.9 MB over the Pi's
-Wi-Fi rather than 61.6, which is the whole reason the export build exists as a
+which is what [step 2](#2-install) shows — and it is 15.9 MB over the Pi's
+Wi-Fi rather than 76.5, which is the whole reason the export build exists as a
 step rather than as a footnote suggesting you could drop the tables if you felt
 like it.
 
@@ -452,7 +491,7 @@ installer takes whichever of the other two it finds regardless.
 
 ### Photos in the catalogue
 
-9,480 of the 14,349 entries have photos, cut by `plants_db`'s `thumbs.py` out
+9,382 of the 14,244 entries have photos, cut by `plants_db`'s `thumbs.py` out
 of edibleplantdb.org's galleries — mostly from iNaturalist, then GBIF and
 Wikimedia Commons. Most have three, a few up to nine: 25,959 in all, at 320 px
 on the long edge, and the best of each again at 160 px for the lists. They
@@ -460,8 +499,8 @@ live in `data/plants.thumbs.sqlite`, a file of their own, because the
 catalogue is rebuilt whenever a rule in `plants_db` moves and the photos only
 when the ZIM does: at 480 MB they would dwarf the `scp` for every one of
 those rebuilds. The gap is the houseplants. edibleplantdb.org is about eating
-plants and has never heard of most of them, so the 3,587 entries that only
-Wikipedia describes have 403 photos between them.
+plants and has never heard of most of them, so of the 3,581 entries that only
+Wikipedia describes, 397 have a photo.
 
 A row in the list carries its photo at the **right** end, not in front of the
 name as a plant of your own does. A third of the catalogue has none, and a
@@ -508,7 +547,7 @@ list you can is the one way an arrangement like this lies.
 | **survives to** | entries whose recorded minimum is at or below that temperature |
 | **height** | entries whose tallest recorded figure falls between the two, either end on its own |
 | **growth form** | one of pfaf's eleven words for what kind of plant it is |
-| **light** | direct sun, indirect light, partial sun, or shade |
+| **light** | entries whose range takes in shade, indirect light, partial sun or direct sun |
 | **soil pH** | entries whose recorded range covers that figure |
 | **edible · medicinal · other uses** | mentioned by a source, or rated *n*/5 or better by pfaf |
 | **aquatic** | entries the article marks as such |
@@ -526,16 +565,37 @@ plants here not mined from a Wikipedia article that record a temperature at
 all, 5,050 record only a floor.
 
 **Height** is asked from both ends, and both ends bound the same figure: the
-tallest recorded, which is the top of the range where the article gave one and
-the single figure otherwise ("growing to 2 m tall" is stored as a minimum with
-no maximum). Bounding one figure twice rather than comparing the two recorded
-ends is what keeps it explicable in a line, and it is also the right reading —
-a plant recorded at 1–3 m does reach 2 m, so it answers "at least 2 m". Nothing
-is missing here: 6,851 entries give a range, 1,354 a single figure, none a
-maximum alone. It is the best-covered figure in the catalogue at 8,205 entries
-and the most evenly spread, from under 15 cm to over 30 m. That spread is why
-it gained a floor: a windowsill asks **what stays under 60 cm**, but 2,141
-entries are over 5 m and a ceiling alone could never ask for those.
+tallest recorded, which is the top of the range where the source gave one and
+the single figure otherwise. Bounding one figure twice rather than comparing
+the two recorded ends is what keeps it explicable in a line, and it is also the
+right reading — a plant recorded at 1–3 m does reach 2 m, so it answers "at
+least 2 m". A single figure is written three ways, and all three read the same:
+pfaf.org gives one height and it is stored as both ends (5,784 entries), an
+article's "growing to 2 m tall" as a minimum alone (1,178), and now and then
+the model's reading of an article gives a maximum alone (436). Only 1,688
+entries give a true range. Either way an entry with one figure reads *To 3 m*,
+never *3–3 m*. At 9,086 entries it is among the best-covered figures in the
+catalogue, and the most evenly spread, from under 15 cm to over 30 m. That
+spread is why it gained a floor: a windowsill asks **what stays under 60 cm**,
+but 2,371 entries are over 5 m and a ceiling alone could never ask for those.
+
+**Leaves** are a length and a width, each read like a height — a range, or one
+figure as a ceiling — in centimetres to a decimal place. All of them are the
+model's reading of an article: 2,520 entries, of which 2,382 give a length,
+1,547 a width and 1,409 both. They are shown on an entry and copied onto a
+species, and not searchable.
+
+**Light** is asked as a point inside a range. An entry records the light it is
+comfortable in, from the shadiest kind to the sunniest — pfaf's "full sun to
+part shade" reads *Partial sun – Direct sun* — and a source naming one kind
+gives a range of one. 11,494 entries record light and 4,791 of them span more
+than one kind. Asking for partial sun finds every entry whose range takes it
+in: 5,500, where matching the one word an entry used to carry found 4,316,
+because the 4,128 plants happy anywhere from part shade to full sun could only
+ever answer one of the two questions they fit. An entry read only off pfaf.org
+or edibleplantdb.org records what the page says the plant *can grow in*, which
+is wider than where it does best, so those turn up under more kinds than an
+article's would.
 
 **Growth form** is the odd one out: every other control narrows a list, and
 this one is the only thing here you can *browse* by. It is pfaf's own
@@ -549,10 +609,13 @@ value outside it is a 400 naming the eleven rather than a search that silently
 finds nothing.
 
 **Soil moisture**, **drought** and **weed potential** come from the same
-pfaf.org paragraph and are shown on an entry without being searchable. Moisture
-is pfaf's phrase kept whole — `dry`, `moist`, `wet` and the three pairings —
-because turning six words into a min/max pair would mean inventing an ordinal
-scale nobody measured. The other two are read three ways rather than two, which
+pfaf.org paragraph and are shown on an entry without being searchable — though
+the model's reading has since given 1,469 more entries a moisture from their
+article, in the same words, for 8,578 in all. Moisture is pfaf's phrase kept
+whole — `dry`, `moist`, `wet` and the three ways of having more than one —
+because "dry, moist or wet" is a plant that does not mind, and a point on a
+scale would put it in the middle with *moist*. `plants_db` writes that scale
+too, as `soil_moisture`; the app reads the phrase. The other two are read three ways rather than two, which
 is why they are facts on the page and not marks beside *Edible*: a mark is only
 ever "somebody said so", but here **"Not recorded" means pfaf.org has no page
 for this plant, while "Not tolerant" and "No" mean it has one and it says
@@ -606,18 +669,18 @@ could not be asked about.
 Asking for a rating restricts you to those 7,161 rows, which is the trap the
 temperature range would have been if the page said nothing. It does say
 something: a search that finds nothing prints why in the catalogue's own terms
-— *"Of the 14,349 entries, only 7,161 carry a pfaf.org rating"* — and on the
+— *"Of the 14,244 entries, only 7,161 carry a pfaf.org rating"* — and on the
 Wikipedia-only build, where the answer is none, it says none. **Only pfaf** is
 the same restriction asked for on purpose: those are the entries that state
 soil, shade and hardiness outright instead of having had them read out of
-prose, and it is the difference between a catalogue of 14,349 names and a
+prose, and it is the difference between a catalogue of 14,244 names and a
 shortlist somebody actually wrote the growing conditions down for.
 
 It used to be written as *not* `enwiki` rather than as a list of the other
 combinations, on the argument that a source added later would land inside it by
 default rather than being dropped without anybody noticing. edibleplantdb.org
 is that later source, and the argument was simply wrong: the filter quietly
-started answering "has a pfaf.org page" with 3,255 rows that have an
+started answering "has a pfaf.org page" with 3,150 rows that have an
 edibleplantdb.org page instead, none of which carries a rating. It now matches
 on the name — `source LIKE '%pfaf%'` — which is what the question asks, and a
 fourth source will need a decision here rather than inheriting one.
@@ -645,9 +708,9 @@ little the view says how much of the catalogue could have answered at all.
 
 ### Reading the results with the right suspicion
 
-This is a **seed**, not a care sheet. Of the 14,349 entries, 12,726 carry a
-figure of some kind, 10,888 carry at least one mark, 8,207 carry prose worth
-keeping — and 972 carry none of the three and are names only.
+This is a **seed**, not a care sheet. Of the 14,244 entries, 13,318 carry a
+figure of some kind, 10,783 carry at least one mark, 8,102 carry prose worth
+keeping — and 664 carry none of the three and are names only.
 
 That last number had not moved for a promotion before this one: it was 1,010
 both before and after pfaf.org, because all 6,029 plants that came across from
@@ -655,9 +718,12 @@ pfaf alone arrived with at least a height, a light or a growth form, so not one
 of them landed as a bare name. edibleplantdb.org is the first source to move it,
 and it moved it the right way — 38 of those Wikipedia articles the extractor
 found nothing quotable in now have a figure or a sentence from somewhere else.
-Its own 3,255 new plants landed the same way pfaf's did: a plant that stated no
+Its own 3,150 new plants landed the same way pfaf's did: a plant that stated no
 figure at all was not taken, which is why the file grew by a quarter and the
-names-only count fell.
+names-only count fell. That left it at 972. A language model reading the
+Wikipedia articles for their figures, each quote checked against the text,
+took it to 664: 308 entries whose article the extractor's patterns found
+nothing in turned out to state a figure in words the patterns missed.
 
 Two labels on the entry page are there to be distrusted, and they are the same
 kind of thing twice: an honest number standing in for a coarser statement.
@@ -703,7 +769,7 @@ with no *Uses* sentence at all, and show the mark alone.
 view onto the file, so anything wrong with the file should be visible here
 rather than tidied up on the way past. (Earlier builds leaked taxobox tails —
 `| image = … | genus = …` — into about a third of the leads. `plants_db` fixed
-that at the source, which is where such a fix belongs.) On the 6,699 plants
+that at the source, which is where such a fix belongs.) On the 6,616 plants
 matched to an article after the fact, it is that article's first paragraph —
 which on a genus match is about the genus: *Sonneratia apetala* opens with
 "Sonneratia is a genus of plants".
@@ -1022,7 +1088,7 @@ sudo ./install.sh
 ```
 
 Skip the middle command and you get the Wikipedia-only catalogue that came
-with the clone, which is a working one — 5,065 entries rather than 14,349. It
+with the clone, which is a working one — 5,065 entries rather than 14,244. It
 is the same `scp` every time the catalogue is rebuilt after this, and
 [three catalogues](#three-catalogues) is the section about why, including how
 `data/plants.export.sqlite` is made.
@@ -1065,7 +1131,7 @@ rare enough to be baffling rather than obviously self-inflicted.
 
 The restart at the end of `install.sh` matters for the same reason a fresh
 search does not: searches open the file every time and pick up a replacement at
-once, but the coverage counts behind the *"of the 14,349 entries, 7,895 record
+once, but the coverage counts behind the *"of the 14,244 entries, 7,927 record
 a soil pH"* line are read once and kept for the life of the process.
 
 Keeping a 4.6 MB binary in git costs a new copy in history every time the dump
@@ -1213,6 +1279,8 @@ usual on an SD card. Prefer `sudo shutdown -h now` over pulling the plug.
       "ph": { "min": 5.5, "max": 7 },
       "light": { "hours": 6, "kind": "indirect" },
       "height": { "min": 2000 },
+      "leafLength": { "min": 25, "max": 90 },
+      "moisture": "moist",
       "schedule": { "type": "interval", "days": 7 },
       "notes": "Prefers bright indirect light and 20–30 °C.",
       "catalogId": 716481,
@@ -1293,7 +1361,11 @@ are the only things the catalogue sends that have no box to be edited in. All
 five are absent on a species you typed out yourself, and dropping the link
 drops all five together. `height` is in whole centimetres and is a species key
 only — a plant never carries one — and like the other groups a lone figure in
-`min` reads as a ceiling: *to 20 m*. `knownAs` is a species key only too, free
+`min` reads as a ceiling: *to 20 m*. `leafLength` and `leafWidth` are two more
+groups of the same shape, species only, in centimetres to a decimal place.
+`moisture` is a species key only as well, one of pfaf.org's six phrases (`dry`,
+`dry or moist`, `moist`, `moist or wet`, `wet`, `dry moist or wet`), and empty
+or absent until it is set. `knownAs` is a species key only too, free
 text, and empty or absent until you type in it; see [known as](#known-as).
 
 `schedule` is `null` or absent when a plant has none, `weekdays` runs 0 = Sunday

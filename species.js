@@ -120,8 +120,10 @@ function renderSpeciesDetail(id) {
   fill($('#sd-humidity'), humidityText(record), 'Not set');
   const ph = phText(record);
   fill($('#sd-ph'), ph && 'pH ' + ph, 'Not set');
+  fill($('#sd-moisture'), moistureText(record), 'Not set');
   fill($('#sd-light'), lightText(record), 'Not set');
   fill($('#sd-height'), heightText(record), 'Not set');
+  fill($('#sd-leaf'), leafText(record), 'Not set');
   fill($('#sd-sched'), scheduleText(record), 'No schedule set');
 
   // What the article committed to, on a species that was filled in from one.
@@ -183,6 +185,7 @@ function renderSpeciesForm(id, entry) {
   $('#sp-known').value = record ? record.knownAs || '' : '';
   $('#sp-notes').value = record ? record.notes || '' : '';
   for (const spec of SPECIES_GROUPS) loadFigures(spec, record, null);
+  $('#sp-moisture').value = record && MOISTURE[record.moisture] ? record.moisture : '';
   loadLight(SPECIES_LIGHT, record, null);
   loadSchedule(SPECIES_SCHED, record);
 
@@ -254,8 +257,9 @@ function renderSpeciesForm(id, entry) {
     const now = new Date().toISOString();
     const fields = { name, knownAs: $('#sp-known').value.trim(),
                      temps: figures.temps, humidity: figures.humidity,
-                     ph: figures.ph, height: figures.height,
-                     light: readLight(SPECIES_LIGHT),
+                     ph: figures.ph, moisture: $('#sp-moisture').value,
+                     height: figures.height, leafLength: figures.leafLength,
+                     leafWidth: figures.leafWidth, light: readLight(SPECIES_LIGHT),
                      schedule: readSchedule(SPECIES_SCHED, null),
                      notes: $('#sp-notes').value.trim(), updatedAt: now };
     // Undefined where the link was dropped or a mark went away, which is how
@@ -304,7 +308,7 @@ function renderSpeciesForm(id, entry) {
 
 /* ---------- filling a species from the catalogue ----------
 
-   The catalogue is 5,065 species that somebody has already looked up, and a
+   The catalogue is 14,244 species that somebody has already looked up, and a
    species you type out by hand is one of them nine times in ten. Filling one
    in from the other copies the figures across rather than pointing at them:
    a phone holds your plants offline and would otherwise have nothing to show
@@ -312,9 +316,11 @@ function renderSpeciesForm(id, entry) {
    is `catalogId`, so the entry can be reopened and re-read later.
    ========================================================================= */
 
-/* Wikipedia describes light four ways and a species knows two, so importing
-   one of the other two has to choose. Partial sun is still sun; shade is the
-   absence of it, which is what indirect light amounts to indoors. */
+/* The catalogue gives light as a range of four kinds and a species knows two,
+   so importing one has to choose, and it goes by the sunny end. Partial sun is
+   still sun, so a range reaching it is a sun plant; shade is the absence of
+   it, which is what indirect light amounts to indoors. A range of one kind
+   comes out as it always did. */
 const CATALOG_TO_LIGHT = { direct: 'direct', indirect: 'indirect',
                            partial: 'direct', shade: 'indirect' };
 
@@ -364,10 +370,11 @@ function pullCatalogEntry(entry) {
 
   const hours = figure(entry, 'light', 'hours');
   if (hours !== null) $(SPECIES_LIGHT.hours).value = hours;
-  const kind = CATALOG_TO_LIGHT[(entry.light && entry.light.kind) || ''];
+  const kind = CATALOG_TO_LIGHT[(entry.light && entry.light.max) || ''];
   if (kind) {
     for (const radio of $$(SPECIES_LIGHT.radios)) radio.checked = radio.value === kind;
   }
+  if (MOISTURE[entry.moisture]) $('#sp-moisture').value = entry.moisture;
 
   const notes = $('#sp-notes');
   if (!notes.value.trim()) notes.value = entry.notes || '';
