@@ -368,8 +368,8 @@ function renderSeedDetail(id) {
   complain('#q-count-error', '');
   complain('#q-pot-error', '');
 
-  setTally($('#q-sprouted'), Math.max(0, t.up - potted), t.sown - potted - t.dead);
-  setTally($('#q-dead'), t.dead, t.sown - t.up);
+  setTally($('#q-sprouted'), Math.max(0, t.up - potted), t.sown - potted);
+  setTally($('#q-dead'), t.dead, t.sown);
   $('#q-potted').textContent = potted ? '+ ' + potted + ' potted up' : '';
 
   $('#q-sprouted').onchange = () => editTally(sowing.id, 'up');
@@ -447,6 +447,12 @@ function setTally(box, n, max) {
  * not been potted up: those the tray has already accounted for, and typing 0
  * over them would lose the fact that they ever came up.
  * The stored figure stays the whole of what came up, potted or not.
+ *
+ * The box typed into wins, up to what the batch holds, and the rest gives
+ * way: the seeds still trying first, then the other box. Died may reach past
+ * the seedlings into the ones potted up, because a plant that died after
+ * leaving the tray is a seed that did not make it — and the plants are not
+ * linked back, so this box is the only place that can be said.
  */
 function editTally(id, which) {
   const sowing = sowings.find((x) => x.id === id && !x.deletedAt);
@@ -456,23 +462,32 @@ function editTally(id, which) {
   const t = tally(sowing);
   const potted = pottedOf(sowing);
 
-  // Everything this box is not allowed to spend: the other tally, and, for
-  // the seedlings box, the ones already potted up.
-  const room = t.sown - (which === 'dead' ? t.up : potted + t.dead);
+  // The seedlings box never spends the potted up: those are out of the tray.
+  const room = t.sown - (which === 'dead' ? 0 : potted);
   const n = Math.floor(Number(String(box.value).trim()));
 
   const problem =
     !isFinite(n) || n < 0 ? 'That does not read as a number of seeds.'
     : n > room ? (room === 0
-        ? 'Every seed in this sowing is already accounted for.'
-        : `There ${room === 1 ? 'is' : 'are'} only ${room} left to account for.`)
+        ? 'Every seed in this sowing has been potted up.'
+        : room === t.sown
+        ? `There ${room === 1 ? 'is' : 'are'} only ${room} in this sowing.`
+        : `Only ${room} can still be in the tray: ${potted} ` +
+          `${potted === 1 ? 'has' : 'have'} been potted up.`)
     : '';
 
   box.classList.toggle('invalid', !!problem);
   complain('#q-count-error', problem);
   if (problem) return;      // left as typed, so the digit can be corrected
 
-  sowing[which === 'dead' ? 'dead' : 'sprouted'] = which === 'dead' ? n : potted + n;
+  if (which === 'dead') {
+    sowing.dead = n;
+    sowing.sprouted = Math.min(t.up, t.sown - n);
+    sowing.potted = Math.min(potted, sowing.sprouted);
+  } else {
+    sowing.sprouted = potted + n;
+    sowing.dead = Math.min(t.dead, t.sown - potted - n);
+  }
   sowing.updatedAt = new Date().toISOString();
   commit();
 }

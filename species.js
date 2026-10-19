@@ -160,11 +160,26 @@ function renderSpeciesDetail(id) {
   $('#sd-count').textContent = mine.length ? '' : 'No plants of this kind yet.';
 
   $('#sd-edit').href = '#/s/' + encodeURIComponent(record.id) + '/edit';
+  $('#sd-pot').href = '#/s/' + encodeURIComponent(record.id) + '/pot';
   const open = $('#sd-catalog-open');
   open.hidden = !record.catalogId;
   if (record.catalogId) open.href = '#/c/' + encodeURIComponent(record.catalogId);
 
   show('species-detail', 'Species');
+}
+
+/**
+ * Pot up: the new-plant form with this species already in its box, so the
+ * plant follows it from the start and only its own name and place are left
+ * to type. Saving lands on the new plant, and Back from there on this species.
+ */
+function renderPotUp(id) {
+  const record = species.find((x) => x.id === id && !x.deletedAt);
+  if (!record) {
+    location.replace('#/species');   // no history entry for a species that is gone
+    return;
+  }
+  renderForm(null, record.name);
 }
 
 /**

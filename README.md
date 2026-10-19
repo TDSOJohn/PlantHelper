@@ -166,6 +166,9 @@ catalogue entry shows, laid out the same way, then whatever the catalogue had
 to say about the kind, the notes, and the plants of your own that follow it.
 **Edit species** is the way into the form, and on a species that came from the
 catalogue **Open the catalogue entry** goes back to the article's prose.
+**Pot up** opens the new-plant form with this species already in its box, so
+the plant follows it from the start and only its name and place are left to
+type; saving lands on the new plant, and Back from there on the species.
 
 A species is read far more often than it is changed — every time you wonder
 what a plant of yours is supposed to want — and opening straight into a form
@@ -823,7 +826,8 @@ gave out. Rename them as you like afterwards.
 The plants are **not linked back** to the sowing. The sowing keeps a count of
 how many it has potted up, and that is all: a plant given away or lost is
 simply deleted, and the sowing's figures stay as they were — the seedling did
-come up, and it did leave the tray. The plants themselves are ordinary plants
+come up, and it did leave the tray. If it died and the sowing should say so,
+raise **Died** by one: that takes it back off the potted-up count. The plants themselves are ordinary plants
 from the moment they exist, each on its own row and its own watering clock,
 which starts the day it was potted.
 
@@ -833,9 +837,12 @@ soil. Those potted up are shown beside the box rather than in it (*4* · *+ 2
 potted up*), since typing a zero over a plant cannot be what you meant: the
 plant is out there, in a pot, being watered.
 
-Neither box will take more than is actually left in the tray. Editing the batch
-size later is allowed, but it cannot be set below what has already been
-accounted for — that would make the percentages lie.
+Either box takes any number up to the size of the batch, and the rest gives
+way: the seeds still trying first, then the other box. *Died* can reach past
+the seedlings into the ones potted up; *Seedlings* never touches those, since
+they are out of the tray. Editing the batch size later is allowed, but it
+cannot be set below what has already been accounted for — that would make the
+percentages lie.
 
 ### When to go and look
 

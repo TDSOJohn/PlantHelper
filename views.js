@@ -3,7 +3,7 @@
 /* =========================================================================
    Routing — #/ , #/all , #/new , #/p/<id> , #/p/<id>/edit ,
              #/species , #/s/new , #/s/<id> , #/s/<id>/edit ,
-             #/s/from/<pageId> ,
+             #/s/<id>/pot , #/s/from/<pageId> ,
              #/seeds , #/seed/new , #/seed/<id> , #/seed/<id>/edit ,
              #/catalog , #/c/<pageId> , #/settings
    ========================================================================= */
@@ -60,7 +60,7 @@ function replaceRoute(hash) {
 function refresh() {
   const path = route();
   if (path === '/new' || path === '/s/new' || path === '/seed/new') return;
-  if (/\/edit$/.test(path)) return;
+  if (/\/(edit|pot)$/.test(path)) return;
   if (/^\/s\/from\/-?\d+$/.test(path)) return;  // a form half filled from the catalogue
   // The catalogue is not made of plants. Nothing a sync brings back can change
   // what is on screen there, and re-rendering it would re-run the search over
@@ -101,6 +101,9 @@ function render() {
 
   const speciesEdit = path.match(/^\/s\/([^/]+)\/edit$/);
   if (speciesEdit) return renderSpeciesForm(speciesEdit[1]);
+
+  const potUpMatch = path.match(/^\/s\/([^/]+)\/pot$/);
+  if (potUpMatch) return renderPotUp(potUpMatch[1]);
 
   const speciesDetail = path.match(/^\/s\/([^/]+)$/);
   if (speciesDetail) return renderSpeciesDetail(speciesDetail[1]);
@@ -907,7 +910,9 @@ function showSchedHint(parent) {
   }
 }
 
-function renderForm(id) {
+/* `speciesName` is what a new plant's species box starts with: set when the
+   form is opened by Pot up on a species page, empty otherwise. */
+function renderForm(id, speciesName) {
   const p = id ? plants.find((x) => x.id === id && !x.deletedAt) : null;
   if (id && !p) {
     location.replace('#/');
@@ -920,7 +925,7 @@ function renderForm(id) {
   $('#f-water').value = p ? p.water || '' : '';
   $('#f-notes').value = p ? p.notes || '' : '';
   $('#f-name').classList.remove('invalid');
-  $('#f-species').value = p ? p.species || '' : '';
+  $('#f-species').value = p ? p.species || '' : speciesName || '';
   loadPlace(p);
   for (const spec of GROUPS) loadFigures(spec, p);
   loadLight(PLANT_LIGHT, p);
