@@ -151,6 +151,11 @@ main {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
+  /* Ticking off Today's list fast is two taps on one spot, because the next ✓
+     slides up under the finger, and iOS zooms on that as a double-tap. Pinch
+     still zooms. On <main> rather than <html> because Safari works touch-action
+     out from the nearest scroller down, and this is it. */
+  touch-action: manipulation;
 }
 .view { padding: var(--pad); }
 
